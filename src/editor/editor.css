@@ -5085,3 +5085,7 @@ body.is-resizing-dock-y, body.is-resizing-dock-y * { cursor: row-resize !importa
 .focus-tool-panel > .panel-body { padding: 12px 18px; }
 .frames-panel { margin: -12px -18px; }
 .topbar-isolated, .focus-tools button, .topbar-viewports button { white-space: nowrap; }
+
+.update-notice--key { flex-wrap: wrap; max-width: 520px; }
+.update-notice--key input { flex: 1; min-width: 180px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--ui-border); background: var(--ui-bg); color: var(--ui-text); font: inherit; }
+.update-notice--key small { flex-basis: 100%; color: var(--ui-muted); }

@@ -12,7 +12,7 @@ export interface RecentProject extends ProjectRef {
   exists: boolean;
 }
 
-export type PublishService = "netlify" | "github" | "cloudflare" | "shopify" | "wordpress" | "buttondown" | "plausible" | "umami" | AnnounceService | `data:${string}`;
+export type PublishService = "netlify" | "github" | "cloudflare" | "shopify" | "wordpress" | "buttondown" | "plausible" | "umami" | AnnounceService | "updates" | `data:${string}`;
 
 export type AnnounceService = "discord" | "bluesky" | "mastodon" | "telegram";
 
@@ -128,6 +128,8 @@ export interface DesktopApi {
   onDrawingChanged(callback: (change: { blockId: string; svg: string }) => void): () => void;
   appVersion(): Promise<string>;
   installUpdate(): Promise<void>;
+  checkUpdates(): Promise<void>;
+  onUpdateNeedsKey(callback: (info: { repo: string }) => void): () => void;
   onUpdateReady(callback: (info: { version: string }) => void): () => void;
 }
 

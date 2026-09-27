@@ -375,6 +375,7 @@ function registerIpc(window) {
   handle("vector:edit", async (blockId, svg, appPath) => drawings.edit(requireProject().path, blockId, svg, appPath || null));
   handle("vector:stop", async (blockId) => drawings.stop(blockId));
   handle("app:version", async () => app.getVersion());
+  handle("update:check", () => checkForUpdates(window));
   handle("update:install", async () => {
     setImmediate(() => autoUpdater.quitAndInstall(true, true));
   });
@@ -401,6 +402,21 @@ function registerIpc(window) {
   });
 }
 
+async function checkForUpdates(window) {
+  if (!app.isPackaged) return;
+  const own = await readJson(path.join(here, "own-build.json"), null);
+  if (own) {
+    const token = await getToken("updates");
+    if (!token) {
+      if (!window.isDestroyed()) window.webContents.send("update:needs-key", { repo: `${own.owner}/${own.repo}` });
+      return;
+    }
+    autoUpdater.setFeedURL({ provider: "github", owner: own.owner, repo: own.repo, private: true, token });
+    autoUpdater.allowPrerelease = true;
+  }
+  await autoUpdater.checkForUpdates().catch((error) => console.warn("Update check failed:", error?.message ?? error));
+}
+
 function setupUpdates(window) {
   if (!app.isPackaged) return;
   autoUpdater.autoDownload = true;
@@ -409,9 +425,7 @@ function setupUpdates(window) {
     if (!window.isDestroyed()) window.webContents.send("update:ready", { version: info.version });
   });
   autoUpdater.on("error", (error) => console.warn("Update check failed:", error?.message ?? error));
-  window.webContents.once("did-finish-load", () => {
-    autoUpdater.checkForUpdates().catch((error) => console.warn("Update check failed:", error?.message ?? error));
-  });
+  window.webContents.once("did-finish-load", () => void checkForUpdates(window));
 }
 
 async function createWindow() {
