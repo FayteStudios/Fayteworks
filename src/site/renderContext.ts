@@ -29,6 +29,7 @@ export interface RenderContext {
   pageUrl?: string;
   lang?: string;
   alternates?: { code: string; label: string; href: string; current: boolean }[];
+  extras?: Record<string, unknown>;
 }
 
 export function isExternalHref(href: string): boolean {

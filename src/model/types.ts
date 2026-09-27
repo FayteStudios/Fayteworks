@@ -212,6 +212,7 @@ export interface Site {
   collections?: Collection[];
   fonts?: CustomFont[];
   styles?: StyleSet[];
+  extras?: Record<string, unknown>;
 }
 
 export interface StyleSet {

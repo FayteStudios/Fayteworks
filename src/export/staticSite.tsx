@@ -347,6 +347,7 @@ export async function buildStaticSite(site: Site, options: StaticSiteOptions = {
       }),
       components: site.components,
       collections: site.collections,
+      extras: site.extras,
       templatePages,
       item
     };

@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { FieldDef } from "../model/fields";
-import type { BlockProps, Site } from "../model/types";
+import type { Block, BlockProps, Section, Site } from "../model/types";
 import type { RenderContext } from "../site/renderContext";
 
 export type BlockCategory = "Navigation" | "Text" | "Media" | "Interactive" | "Content" | "Layout" | "Actions" | "Social" | "Services" | "Toybox";
@@ -26,6 +26,7 @@ export interface BlockDefinition {
   /** Short facts shown as badges in the inspector (see editor/Hint.tsx). */
   badges?: ("free" | "noServer" | "account" | "markdown" | "grows" | "github" | "desktop")[];
   inlineEdit?: InlineEditTarget[];
+  Tools?: ComponentType<{ block: Block; section: Section; mutate: (recipe: (b: Block) => void, key?: string) => void }>;
 }
 
 export interface InlineEditTarget {

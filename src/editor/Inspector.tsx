@@ -415,6 +415,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
         )}
         {block.type === "collection" && !design && <CollectionTools block={block} mutate={mutateBlock} />}
         {block.type === "vector" && <VectorTools block={block} mutate={mutateBlock} />}
+        {def?.Tools && <def.Tools block={block} section={section} mutate={mutateBlock} />}
         {block.type === "flipbook" && <FlipbookEntry section={section} block={block} />}
         {(block.type === "video" || block.type === "audio") && <MediaTools block={block} mutate={mutateBlock} />}
         <div className="focus-extras">
@@ -534,6 +535,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
         </section>
       )}
       {block.type === "vector" && <VectorTools block={block} mutate={mutateBlock} />}
+      {def?.Tools && <def.Tools block={block} section={section} mutate={mutateBlock} />}
       {block.type === "flipbook" && <FlipbookEntry section={section} block={block} />}
       {(block.type === "video" || block.type === "audio") && <MediaTools block={block} mutate={mutateBlock} />}
       {block.type === "code" && /^https?:\/\//.test(String(block.props.source ?? "")) && <ViewOriginal url={String(block.props.source)} />}

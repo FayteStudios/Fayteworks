@@ -24,9 +24,15 @@ const found = import.meta.glob<{ default: CardLayouts }>("/private/cards/index.t
 
 export const cardLayouts: CardLayouts | null = Object.values(found)[0]?.default ?? null;
 
+export interface ExtensionScene {
+  title: string;
+  Scene: ComponentType<{ params: Record<string, string>; onClose: () => void }>;
+}
+
 export interface Extension {
   id: string;
   blocks?: BlockDefinition[];
+  scenes?: Record<string, ExtensionScene>;
   css?: string;
   runtime?: (root: Document | HTMLElement) => () => void;
 }
@@ -45,4 +51,9 @@ export function siteBlockTypes(site: Site): Set<string> {
 export function extensionsUsedBy(site: Site): Extension[] {
   const types = siteBlockTypes(site);
   return extensions.filter((e) => !e.blocks?.length || e.blocks.some((b) => types.has(b.type)));
+}
+
+export function extensionScene(id: string): ExtensionScene | undefined {
+  for (const e of extensions) if (e.scenes?.[id]) return e.scenes[id];
+  return undefined;
 }

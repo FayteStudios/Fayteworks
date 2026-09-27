@@ -39,9 +39,10 @@ export function EditorRenderProvider({ children }: { children: ReactNode }) {
         const first = page.collectionId ? state.site.collections?.find((c) => c.id === page.collectionId)?.items[0] : undefined;
         return first ? { values: itemValues(state.site.collections?.find((c) => c.id === page.collectionId), first), url: "#" } : undefined;
       })(),
-      components: state.site.components
+      components: state.site.components,
+      extras: state.site.extras
     }),
-    [pages, page.id, page.design, page.collectionId, assetVersion, state.site.components, state.site.collections, state.mode, lang, state.site.languages, state.site.settings.lang]
+    [pages, page.id, page.design, page.collectionId, assetVersion, state.site.components, state.site.collections, state.site.extras, state.mode, lang, state.site.languages, state.site.settings.lang]
   );
 
   return <RenderCtx.Provider value={ctx}>{children}</RenderCtx.Provider>;
