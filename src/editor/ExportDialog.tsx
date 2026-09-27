@@ -2,6 +2,7 @@ import { allThemes } from "../model/styles";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { saveVersion } from "../history/versions";
 import { checkSite } from "../quality/prepublish";
+import { referenceSprites } from "../sprites/sprites";
 import { openPrepublish } from "../quality/PrepublishDialog";
 import { openGuide } from "../guides/GuideHost";
 import { canWriteToFolder, downloadBlob, writeToFolder } from "../export/output";
@@ -140,6 +141,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   }
 
   async function run(target: Target) {
+    const borrowed = referenceSprites(site);
+    if (borrowed.length && (target === "netlify" || target === "github" || target === "cloudflare"))
+      return setStatus({ kind: "error", message: `This site uses sprites marked reference only (${borrowed.map((s) => s.name).join(", ")}), so it can't be published. Export to a folder to practise with it.` });
     setStatus({ kind: "working", message: "Building…" });
     try {
       void saveVersion(state.site, `Before ${target === "zip" ? "downloading" : target === "browser-folder" || target === "project" || target === "choose" ? "exporting" : `publishing to ${target}`}`, "publish").catch(() => undefined);

@@ -2024,3 +2024,22 @@ a.b-gallery-item:hover img {
 .b-qr figcaption { font-size: 0.9rem; text-align: center; }
 
 .b-addcal { flex-wrap: wrap; gap: 0.5rem; }
+
+.b-sprite {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+
+.b-sprite .fw-sprite {
+  display: block;
+  height: 100%;
+  max-width: 100%;
+  background-repeat: no-repeat;
+}
+
+.b-sprite--empty {
+  border: 1px dashed color-mix(in oklab, var(--text) 25%, transparent);
+  border-radius: var(--radius);
+  color: var(--muted);
+}

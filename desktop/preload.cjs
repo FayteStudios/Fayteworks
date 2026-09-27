@@ -62,6 +62,7 @@ contextBridge.exposeInMainWorld("desktop", {
   appVersion: () => call("app:version"),
   installUpdate: () => call("update:install"),
   checkUpdates: () => call("update:check"),
+  fetchFile: (url) => call("web:fetchFile", url),
   onUpdateNeedsKey: (callback) => {
     const listener = (_event, info) => callback(info);
     ipcRenderer.on("update:needs-key", listener);

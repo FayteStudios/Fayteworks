@@ -376,6 +376,20 @@ function registerIpc(window) {
   handle("vector:stop", async (blockId) => drawings.stop(blockId));
   handle("app:version", async () => app.getVersion());
   handle("update:check", () => checkForUpdates(window));
+  handle("web:fetchFile", async (url) => {
+    const address = new URL(String(url));
+    if (!/^https?:$/.test(address.protocol)) throw new Error("Only web addresses (http or https) can be fetched.");
+    const response = await net.fetch(address.toString(), { headers: { "User-Agent": "FayteWorks" } });
+    if (!response.ok) throw new Error(`The site answered ${response.status}.`);
+    const size = Number(response.headers.get("content-length") || 0);
+    if (size > 40 * 1024 * 1024) throw new Error("That file is over 40 MB.");
+    const type = (response.headers.get("content-type") || "").split(";")[0].trim();
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length > 40 * 1024 * 1024) throw new Error("That file is over 40 MB.");
+    const name = decodeURIComponent(address.pathname.split("/").pop() || "download");
+    if (type === "text/html") return { url: response.url, type, name, html: new TextDecoder().decode(bytes) };
+    return { url: response.url, type, name, bytes };
+  });
   handle("update:install", async () => {
     setImmediate(() => autoUpdater.quitAndInstall(true, true));
   });

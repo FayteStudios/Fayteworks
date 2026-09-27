@@ -129,6 +129,7 @@ export interface DesktopApi {
   appVersion(): Promise<string>;
   installUpdate(): Promise<void>;
   checkUpdates(): Promise<void>;
+  fetchFile(url: string): Promise<{ url: string; type: string; name: string; bytes?: Uint8Array; html?: string }>;
   onUpdateNeedsKey(callback: (info: { repo: string }) => void): () => void;
   onUpdateReady(callback: (info: { version: string }) => void): () => void;
 }

@@ -5093,3 +5093,36 @@ body.is-resizing-dock-y, body.is-resizing-dock-y * { cursor: row-resize !importa
 .companion-add { display: flex; flex-wrap: wrap; gap: 8px; }
 .companion-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 12px; border-radius: 12px; background: var(--ui-raised); }
 .companion-page { font-size: 13px; }
+
+.sprites-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
+.sprites-layout > .sprites-pending, .sprites-layout > .sprites-empty { grid-column: span 2; max-width: 640px; }
+.sprites-side { display: flex; flex-direction: column; gap: 10px; }
+.sprites-side h3 { margin: 0 0 4px; font-size: 15px; }
+.sprites-set { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--ui-border); background: var(--ui-panel); color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; }
+.sprites-set.is-active { border-color: var(--ui-accent); }
+.sprites-set > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sprites-set small { color: var(--ui-muted); font-size: 12px; }
+.sprites-set .fw-sprite, .sprites-state-list .fw-sprite { width: 40px; flex: none; }
+.sprites-drop { display: flex; flex-direction: column; gap: 4px; padding: 18px 14px; border-radius: 14px; border: 2px dashed var(--ui-border); background: transparent; color: var(--ui-text); font: inherit; text-align: center; cursor: pointer; }
+.sprites-drop.is-over, .sprites-drop:hover { border-color: var(--ui-accent); }
+.sprites-drop small { color: var(--ui-muted); font-size: 12px; line-height: 1.4; }
+.sprites-url { display: flex; gap: 6px; }
+.sprites-url input { flex: 1; min-width: 0; }
+.sprites-links { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; max-height: 220px; overflow: auto; }
+.sprites-links small { color: var(--ui-muted); }
+.sprites-sources { display: flex; flex-direction: column; gap: 8px; }
+.sprites-grid-controls { flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.sprites-grid-controls .scene-field input { width: 90px; }
+.sprites-name { flex: 1; }
+.sprites-frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; max-height: 52vh; overflow: auto; padding: 2px; }
+.sprite-tile { position: relative; display: grid; place-items: center; padding: 6px; border-radius: 8px; border: 1px solid var(--ui-border); background: repeating-conic-gradient(#2a2d34 0 25%, #22252b 0 50%) 0 0 / 12px 12px; cursor: pointer; }
+.sprite-tile .fw-sprite { width: 100%; }
+.sprite-tile small { position: absolute; left: 4px; top: 2px; font-size: 10px; color: var(--ui-muted); }
+.sprite-tile.is-active { border: 2px solid var(--ui-accent); padding: 5px; }
+.sprites-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 4px; }
+.sprites-state-list { display: flex; flex-direction: column; gap: 6px; }
+.sprites-state { display: flex; flex-direction: column; gap: 12px; }
+.sprites-preview { width: 160px; align-self: center; border-radius: 12px; background-color: #22252b; }
+.sprites-delete { align-self: flex-start; color: var(--ui-muted); }
+.fw-sprite { display: block; background-repeat: no-repeat; }
+@media (max-width: 1200px) { .sprites-layout { grid-template-columns: 240px minmax(0, 1fr); } .sprites-states { grid-column: 2; } }

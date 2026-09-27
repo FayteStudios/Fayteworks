@@ -18,6 +18,7 @@ import { allThemes, styleClass, styleOf, styleSetsCss } from "../model/styles";
 import { collectMediaRefs, dataUrlToBlob, EDITOR_ONLY_PROPS, extensionFor, getAsset, hashBlob, isAssetRef } from "../state/assets";
 import type { OutputFile } from "./zip";
 import { thirdPartyNotices } from "../catalogue/notices";
+import { spritesInUse } from "../sprites/sprites";
 
 export type FontHosting = "embed" | "link";
 
@@ -206,10 +207,11 @@ async function optimiseImage(blob: Blob): Promise<Blob | null> {
 
 async function collectAssets(site: Site, files: OutputFile[], optimise = true, savings = { before: 0, after: 0, count: 0 }): Promise<Map<string, string>> {
   const paths = new Map<string, string>();
-  for (const ref of collectMediaRefs(site, new Set(), EDITOR_ONLY_PROPS)) {
+  const sheets = new Set(spritesInUse(site).map((s) => s.sheet));
+  for (const ref of collectMediaRefs({ ...site, sprites: undefined }, new Set(sheets), EDITOR_ONLY_PROPS)) {
     const original = isAssetRef(ref) ? (await getAsset(ref))?.blob : await dataUrlToBlob(ref);
     if (!original) continue;
-    const smaller = optimise ? await optimiseImage(original) : null;
+    const smaller = optimise && !sheets.has(ref) ? await optimiseImage(original) : null;
     if (smaller) {
       savings.before += original.size;
       savings.after += smaller.size;
@@ -348,6 +350,7 @@ export async function buildStaticSite(site: Site, options: StaticSiteOptions = {
       components: site.components,
       collections: site.collections,
       extras: site.extras,
+      sprites: site.sprites,
       templatePages,
       item
     };

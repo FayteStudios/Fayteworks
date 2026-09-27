@@ -7,6 +7,7 @@ import { extensionScene } from "../model/extras";
 import { SiteScene } from "./SiteScene";
 import { LookScene } from "./LookScene";
 import { DescribeScene } from "./DescribeScene";
+import { SpritesScene } from "../sprites/SpritesScene";
 import type { LookTab, Scene } from "./scenes";
 
 const LOOK_TABS: { id: LookTab; label: string }[] = [
@@ -32,7 +33,7 @@ export function SceneHost({ scene, setScene, children }: { scene: Scene; setScen
 
   const page = scene.kind === "page" ? state.site.pages.find((p) => p.id === scene.pageId) : undefined;
   const title =
-    scene.kind === "page" ? `Page settings · ${page?.title ?? ""}` : scene.kind === "look" ? "Look" : scene.kind === "site" ? "Site settings" : scene.kind === "extension" ? (extensionScene(scene.id)?.title ?? "Tool") : "Describing pictures";
+    scene.kind === "page" ? `Page settings · ${page?.title ?? ""}` : scene.kind === "look" ? "Look" : scene.kind === "site" ? "Site settings" : scene.kind === "extension" ? (extensionScene(scene.id)?.title ?? "Tool") : scene.kind === "sprites" ? "Sprites" : "Describing pictures";
 
   return (
     <div className="scene" role="dialog" aria-modal="true" aria-label={title}>
@@ -72,6 +73,8 @@ export function SceneHost({ scene, setScene, children }: { scene: Scene; setScen
             const ext = extensionScene(scene.id);
             return ext ? <ext.Scene params={scene.params ?? {}} onClose={close} /> : <p className="scene-empty">This tool isn't in this build.</p>;
           })()
+        ) : scene.kind === "sprites" ? (
+          <SpritesScene id={scene.id} />
         ) : scene.kind === "describe" ? (
           <DescribeScene focus={scene.focus} onDone={close} />
         ) : scene.kind === "look" ? (

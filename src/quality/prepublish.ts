@@ -8,6 +8,7 @@ import { pageSectionsWithShared, type SectionRole } from "../model/ops";
 import { resolveColor } from "../model/theme";
 import { PAGE_LINK_PREFIX, type Block, type Page, type Section, type Site } from "../model/types";
 import { SNIPCART_KEY, MEMBERSTACK_APP } from "../services/siteServices";
+import { spritesInUse } from "../sprites/sprites";
 
 export type IssueCategory = "Accessibility" | "Links" | "Search engines" | "Speed" | "Setup";
 
@@ -228,6 +229,11 @@ export function checkSite(site: Site, sizes: Map<string, number> = new Map()): P
   for (const s of blocksOfType("community")) {
     const c = COMMUNITY[String(s.block.props.provider)] ?? COMMUNITY.discord;
     if (!c.re.test(String(s.block.props.url ?? ""))) add({ key: `community:${s.block.id}`, category: "Setup", severity: "fix", message: `A Community block has no ${c.label} link (it won't show).`, how: "Paste the invite or page link.", where: where(s), fix: { kind: "guide", guide: "community" } });
+  }
+
+  for (const set of spritesInUse(site)) {
+    if (set.licence === "reference") add({ key: `sprite-ref:${set.id}`, category: "Setup", severity: "fix", message: `The sprite “${set.name}” is marked reference only, so this site can't go online with it.`, how: "Swap it for your own art or a free set, or remove the pieces using it. You can still export to a folder to practise." });
+    else if (set.licence === "ccby" && !set.credit?.trim()) add({ key: `sprite-credit:${set.id}`, category: "Setup", severity: "fix", message: `The sprite “${set.name}” needs a credit to the artist.`, how: "Open Sprites and write the credit, then show it somewhere on the site (the footer is usual)." });
   }
 
   return issues;

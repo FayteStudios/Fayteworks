@@ -1,3 +1,4 @@
+import type { SpriteSet } from "../model/types";
 import { createContext, useContext } from "react";
 import { PAGE_LINK_PREFIX, type Collection, type ComponentDef } from "../model/types";
 
@@ -30,6 +31,7 @@ export interface RenderContext {
   lang?: string;
   alternates?: { code: string; label: string; href: string; current: boolean }[];
   extras?: Record<string, unknown>;
+  sprites?: SpriteSet[];
 }
 
 export function isExternalHref(href: string): boolean {

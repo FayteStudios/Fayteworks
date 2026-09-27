@@ -40,9 +40,10 @@ export function EditorRenderProvider({ children }: { children: ReactNode }) {
         return first ? { values: itemValues(state.site.collections?.find((c) => c.id === page.collectionId), first), url: "#" } : undefined;
       })(),
       components: state.site.components,
-      extras: state.site.extras
+      extras: state.site.extras,
+      sprites: state.site.sprites
     }),
-    [pages, page.id, page.design, page.collectionId, assetVersion, state.site.components, state.site.collections, state.site.extras, state.mode, lang, state.site.languages, state.site.settings.lang]
+    [pages, page.id, page.design, page.collectionId, assetVersion, state.site.components, state.site.collections, state.site.extras, state.site.sprites, state.mode, lang, state.site.languages, state.site.settings.lang]
   );
 
   return <RenderCtx.Provider value={ctx}>{children}</RenderCtx.Provider>;

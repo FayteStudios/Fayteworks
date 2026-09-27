@@ -215,6 +215,30 @@ export interface Site {
   styles?: StyleSet[];
   extras?: Record<string, unknown>;
   companions?: Companion[];
+  sprites?: SpriteSet[];
+}
+
+export interface SpriteState {
+  id: string;
+  name: string;
+  frames: number[];
+  fps: number;
+  loop: boolean;
+}
+
+export interface SpriteSet {
+  id: string;
+  name: string;
+  sheet: string;
+  frameW: number;
+  frameH: number;
+  columns: number;
+  rows: number;
+  pixelated: boolean;
+  states: SpriteState[];
+  licence: "own" | "cc0" | "ccby" | "permission" | "reference";
+  credit?: string;
+  source?: string;
 }
 
 export interface Companion {

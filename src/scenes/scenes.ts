@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 export type LookTab = "colours" | "fonts" | "shape" | "styles";
 export type SiteTab = "site" | "connections" | "languages" | "client" | "companions";
 
-export type Scene = { kind: "page"; pageId: string } | { kind: "look"; tab: LookTab } | { kind: "site"; tab: SiteTab } | { kind: "describe"; focus?: string } | { kind: "extension"; id: string; params?: Record<string, string> };
+export type Scene = { kind: "page"; pageId: string } | { kind: "look"; tab: LookTab } | { kind: "site"; tab: SiteTab } | { kind: "describe"; focus?: string } | { kind: "extension"; id: string; params?: Record<string, string> } | { kind: "sprites"; id?: string };
 
 const OPEN_SCENE = "fayteworks:open-scene";
 
