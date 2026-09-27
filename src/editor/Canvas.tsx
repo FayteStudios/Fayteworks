@@ -7,7 +7,7 @@ import { themeVars } from "../model/theme";
 import { initSite } from "../site/runtime";
 import { PageRenderer } from "../site/SiteRenderer";
 import { TIER_LABEL } from "../model/responsive";
-import { cardLayouts, extensions } from "../model/extras";
+import { allExtensionRuntimes, cardLayouts } from "../model/extras";
 import { isCardShell, SHELL_OPTIONS, shellOf } from "../model/shells";
 import { flushSync } from "react-dom";
 import { editorTier, useEditor } from "../state/store";
@@ -217,7 +217,7 @@ export function Canvas() {
     const stop = initSite(siteRootRef.current);
     const stopCards = cardLayouts?.runtime(siteRootRef.current);
     const root = siteRootRef.current;
-    const stopExtras = extensions.map((e) => e.runtime?.(root));
+    const stopExtras = allExtensionRuntimes.map((run) => run(root));
     return () => {
       stopExtras.forEach((fn) => fn?.());
       stopCards?.();

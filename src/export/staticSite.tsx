@@ -13,7 +13,7 @@ import { isExternalHref, RenderCtx, type RenderContext } from "../site/renderCon
 import { PageRenderer } from "../site/SiteRenderer";
 import siteCss from "../site/site.css?raw";
 import { initSite } from "../site/runtime";
-import { cardLayouts, extensionsUsedBy } from "../model/extras";
+import { cardLayouts, extensionCodeFor } from "../model/extras";
 import { allThemes, styleClass, styleOf, styleSetsCss } from "../model/styles";
 import { collectMediaRefs, dataUrlToBlob, EDITOR_ONLY_PROPS, extensionFor, getAsset, hashBlob, isAssetRef } from "../state/assets";
 import type { OutputFile } from "./zip";
@@ -423,12 +423,12 @@ ${shownBody}${services.bodyEnd.length ? `\n    ${services.bodyEnd.join("\n    ")
   }
 
   const ownFonts = fontFaceCss(site.fonts, (src) => assetPaths.get(src) ?? src);
-  files.push({ path: "site.css", data: encoder.encode((ownFonts ? ownFonts + "\n" : "") + fontCss + themeCss(site) + siteCss + (cardLayouts?.css ?? "") + extensionsUsedBy(site).map((e) => e.css ?? "").join("\n")) });
+  files.push({ path: "site.css", data: encoder.encode((ownFonts ? ownFonts + "\n" : "") + fontCss + themeCss(site) + siteCss + (cardLayouts?.css ?? "") + extensionCodeFor(site).css) });
   if (needsScript) {
     files.push({ path: "site.js", data: encoder.encode(`/* Site behaviours: scroll reveal, carousels, lightbox, tabs, video. */
 // On a password-protected page it waits until the page has been opened.
 (function () {
-  var run = function () { (${initSite.toString()})(document);${cardLayouts ? ` (${cardLayouts.runtime.toString()})(document);` : ""}${extensionsUsedBy(site).map((e) => (e.runtime ? ` (${e.runtime.toString()})(document);` : "")).join("")} };
+  var run = function () { (${initSite.toString()})(document);${cardLayouts ? ` (${cardLayouts.runtime.toString()})(document);` : ""}${extensionCodeFor(site).runtimes.map((run) => ` (${run.toString()})(document);`).join("")} };
   if (document.documentElement.hasAttribute("data-fw-locked")) document.addEventListener("fw:unlocked", run, { once: true });
   else run();
 })();

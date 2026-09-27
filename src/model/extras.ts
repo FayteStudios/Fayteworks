@@ -29,12 +29,21 @@ export interface ExtensionScene {
   Scene: ComponentType<{ params: Record<string, string>; onClose: () => void }>;
 }
 
+type Runtime = (root: Document | HTMLElement) => () => void;
+
+export interface ExtensionPart {
+  blocks: string[];
+  css?: string;
+  runtime?: Runtime;
+}
+
 export interface Extension {
   id: string;
   blocks?: BlockDefinition[];
   scenes?: Record<string, ExtensionScene>;
   css?: string;
-  runtime?: (root: Document | HTMLElement) => () => void;
+  runtime?: Runtime;
+  parts?: ExtensionPart[];
 }
 
 const extensionModules = import.meta.glob<{ default: Extension }>("/private/*/extension.tsx", { eager: true });
@@ -52,6 +61,18 @@ export function siteBlockTypes(site: Site): Set<string> {
 export function extensionsUsedBy(site: Site): Extension[] {
   const types = siteBlockTypes(site);
   return extensions.filter((e) => !e.blocks?.length || e.blocks.some((b) => types.has(b.type)));
+}
+
+export const allExtensionRuntimes: Runtime[] = extensions.flatMap((e) => [e.runtime, ...(e.parts ?? []).map((p) => p.runtime)]).filter((r): r is Runtime => Boolean(r));
+
+export function extensionCodeFor(site: Site): { css: string; runtimes: Runtime[] } {
+  const types = siteBlockTypes(site);
+  const used = extensionsUsedBy(site);
+  const parts = used.flatMap((e) => (e.parts ?? []).filter((p) => p.blocks.some((b) => types.has(b))));
+  return {
+    css: [...used.map((e) => e.css ?? ""), ...parts.map((p) => p.css ?? "")].filter(Boolean).join("\n"),
+    runtimes: [...used.map((e) => e.runtime), ...parts.map((p) => p.runtime)].filter((r): r is Runtime => Boolean(r))
+  };
 }
 
 export function extensionScene(id: string): ExtensionScene | undefined {
