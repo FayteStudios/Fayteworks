@@ -18,10 +18,9 @@ import { ShareButton } from "../share/ShareButton";
 import type { FieldDef } from "../model/fields";
 import { layerIdOf, reorderWithinLayer, placeInStack } from "../model/layers";
 import { cloneBlock, findPage, findSection, componentSection } from "../model/ops";
-import type { ComponentDef, PageSeo, SiteSettings, Orientation } from "../model/types";
-import { THEME_FIELDS } from "../model/theme";
+import type { ComponentDef, PageSeo, Orientation } from "../model/types";
 import { useEffect, useState, type ReactNode } from "react";
-import { GRID_COLUMNS, type Block, type PropValue, type Section, type SectionSettings, type Theme } from "../model/types";
+import { type Block, type PropValue, type Section, type SectionSettings } from "../model/types";
 import { hasCustomLayout, isHiddenAt, isStacked, rectFor, setHiddenAndReflow, setRect, TIER_LABEL } from "../model/responsive";
 import { editorTier, selectedBlockIds, useEditor } from "../state/store";
 import { getBlockDefinition as defOf } from "../blocks/registry";
@@ -35,13 +34,12 @@ import { settleBlocks } from "../model/collisions";
 import { densityOf, gridOf, setGridDensity } from "../model/grid";
 import { GridPrecisionField } from "./GridPrecisionField";
 import { FieldList } from "./Fields";
-import { openPanel } from "./workspace";
-import { FlipbookTools } from "../motion/FlipbookTools";
+import { openFramesFor, openTimelineFor } from "./focusTools";
 import { SoundTools } from "../motion/SoundTools";
 import { CollectionTools, ItemPageSetting } from "../data/CollectionTools";
 import { isCardShell, SHELL_OPTIONS, shellFields, shellOf } from "../model/shells";
 import { cardLayouts } from "../model/extras";
-import type { PageShell, ShellType } from "../model/types";
+import type { PageShell } from "../model/types";
 import { Badge, BADGES, Hint } from "./Hint";
 import { Icon } from "./icons";
 import { cls } from "../util/cls";
@@ -75,18 +73,6 @@ const PAGE_FIELDS: FieldDef[] = [
     hint: "Shown under the title in search results and link previews. Aim for one or two sentences."
   },
   { key: "image", label: "Social preview image", kind: "image", hint: "Used when the page is shared. 1200 × 630 works best: make one with Pages → New design → Link preview, then “Use as the share picture”." }
-];
-
-const SITE_FIELDS: FieldDef[] = [
-  { key: "favicon", label: "Favicon", kind: "image", hint: "The small icon in browser tabs. Square PNG or SVG." },
-  {
-    key: "baseUrl",
-    label: "Public address",
-    kind: "text",
-    placeholder: "https://example.com",
-    hint: "Optional. Enables a sitemap and full-URL social previews."
-  },
-  { key: "lang", label: "Language code", kind: "text", placeholder: "en" }
 ];
 
 const MOTION_FIELDS: FieldDef[] = [
@@ -135,6 +121,20 @@ const layoutFields = (cols: number): FieldDef[] => [
   { key: "y", label: "Row", kind: "number", min: 1 },
   { key: "h", label: "Height", kind: "number", min: 1 }
 ];
+
+function FlipbookEntry({ section, block }: { section: Section; block: Block }) {
+  const frames = Array.isArray(block.props.frames) ? block.props.frames.length : 0;
+  return (
+    <section className="inspector-group">
+      <p className="field-hint">
+        {frames} frame{frames === 1 ? "" : "s"} at {Number(block.props.fps ?? 12)} a second.
+      </p>
+      <button className="btn btn--block btn--primary" onClick={() => openFramesFor(section.id, block.id)}>
+        Edit the frames
+      </button>
+    </section>
+  );
+}
 
 function BlockInspector({ section, blockId }: { section: Section; blockId: string }) {
   const { state, page, commit, select } = useEditor();
@@ -272,7 +272,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
                   }, `${blockId}.motion.${key}`)
                 }
               />
-              <button className="btn btn--block" onClick={() => openPanel("timeline")}>
+              <button className="btn btn--block btn--primary" onClick={() => openTimelineFor(section.id, block.id)}>
                 {block.animations?.length ? `Open its timeline (${block.animations.length})` : "Make your own animation in the timeline"}
               </button>
             </>
@@ -415,7 +415,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
         )}
         {block.type === "collection" && !design && <CollectionTools block={block} mutate={mutateBlock} />}
         {block.type === "vector" && <VectorTools block={block} mutate={mutateBlock} />}
-        {block.type === "flipbook" && <FlipbookTools block={block} mutate={mutateBlock} />}
+        {block.type === "flipbook" && <FlipbookEntry section={section} block={block} />}
         {(block.type === "video" || block.type === "audio") && <MediaTools block={block} mutate={mutateBlock} />}
         <div className="focus-extras">
           <button onClick={() => setSheet("motion")}>
@@ -534,7 +534,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
         </section>
       )}
       {block.type === "vector" && <VectorTools block={block} mutate={mutateBlock} />}
-      {block.type === "flipbook" && <FlipbookTools block={block} mutate={mutateBlock} />}
+      {block.type === "flipbook" && <FlipbookEntry section={section} block={block} />}
       {(block.type === "video" || block.type === "audio") && <MediaTools block={block} mutate={mutateBlock} />}
       {block.type === "code" && /^https?:\/\//.test(String(block.props.source ?? "")) && <ViewOriginal url={String(block.props.source)} />}
       {block.type === "code" && block.props.licence === "Reference only" && (
@@ -559,7 +559,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
             }, `${blockId}.motion.${key}`)
           }
         />
-        <button className="btn btn--block motion-timeline-open" onClick={() => openPanel("timeline")}>
+        <button className="btn btn--block motion-timeline-open" onClick={() => openTimelineFor(section.id, block.id)}>
           {block.animations?.length ? `◷ Timeline (${block.animations.length} animation${block.animations.length === 1 ? "" : "s"})` : "◷ Make your own in the timeline"}
         </button>
       </Fold>
@@ -964,31 +964,13 @@ function PageAndThemeInspector() {
       </section>
         </>
       )}
-      <section className="inspector-group">
-        <h3 className="panel-heading">Site</h3>
-        <FieldList
-          fields={SITE_FIELDS}
-          values={state.site.settings as unknown as Record<string, PropValue>}
-          onChange={(key, value) =>
-            commit((draft) => {
-              draft.settings[key as keyof SiteSettings] = String(value);
-            }, `settings.${key}`)
-          }
-        />
-      </section>
-      <section className="inspector-group">
-        <h3 className="panel-heading">Site theme</h3>
-        <FieldList
-          fields={THEME_FIELDS}
-          values={state.site.theme as unknown as Record<string, PropValue>}
-          allowTokens={false}
-          onChange={(key, value) =>
-            commit((draft) => {
-              (draft.theme as unknown as Record<string, PropValue>)[key as keyof Theme] = value;
-            }, `theme.${key}`)
-          }
-        />
-      </section>
+      <button className="inspector-door" onClick={() => openScene({ kind: "look", tab: "colours" })}>
+        <Icon name="palette" size={20} />
+        <span>
+          <strong>Colours and fonts</strong>
+          <small>Designs use the site's Look, so they match the website.</small>
+        </span>
+      </button>
     </>
   );
 }

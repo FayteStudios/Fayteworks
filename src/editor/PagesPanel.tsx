@@ -3,12 +3,11 @@ import { openScene } from "../scenes/scenes";
 import { Icon } from "./icons";
 import { useClientLock } from "../client/clientMode";
 import { NewDesignDialog } from "../design/NewDesignDialog";
-import { DESIGN_PRESETS, describeSize } from "../model/design";
 import { useEditor } from "../state/store";
 import { cls } from "../util/cls";
 import { NewPageDialog } from "./NewMenu";
 
-function PageMenu({ onSettings, onDelete }: { onSettings: () => void; onDelete?: () => void }) {
+export function PageMenu({ onSettings, onDelete, settingsLabel = "Page settings" }: { onSettings: () => void; onDelete?: () => void; settingsLabel?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -25,7 +24,7 @@ function PageMenu({ onSettings, onDelete }: { onSettings: () => void; onDelete?:
       {open && (
         <div className="pages-menu-list" role="menu">
           <button role="menuitem" onClick={() => (setOpen(false), onSettings())}>
-            Page settings
+            {settingsLabel}
           </button>
           {onDelete && (
             <button role="menuitem" className="is-danger" onClick={() => (setOpen(false), onDelete())}>
@@ -78,31 +77,15 @@ export function PagesPanel() {
       <p className="panel-hint">The first page is your home page. ⋯ next to a page opens its settings.</p>
 
       <h3 className="panel-heading pages-designs-heading">Designs</h3>
-      {designs.length > 0 && (
-        <ul className="pages-list">
-          {designs.map((page) => (
-            <li key={page.id} className={cls("pages-item", page.id === currentPage.id && "is-current")}>
-              <button className="pages-open" onClick={() => setPage(page.id)}>
-                <span className="pages-title">{page.title}</span>
-                <span className="pages-slug">
-                  {DESIGN_PRESETS.find((p) => p.id === page.design!.preset)?.label.split(" · ")[0] ?? "Design"} · {describeSize(page.design!)}
-                </span>
-              </button>
-              <button className="pages-delete" title="Delete design" hidden={locked} onClick={() => deletePage(page.id)}>
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
       {!locked && (
-        <>
-          <button className="btn btn--block" onClick={() => setNewDesign(true)}>
-            + New design…
-          </button>
-        </>
+        <button className="inspector-door" onClick={() => (designs[0] ? setPage(designs[0].id) : setNewDesign(true))}>
+          <Icon name="design" size={20} />
+          <span>
+            <strong>{designs.length ? "Open the design tool" : "Make a design"}</strong>
+            <small>{designs.length ? `${designs.length} design${designs.length === 1 ? "" : "s"}: flyers, cards, posters, invoices` : "Flyers, cards, posters and social images. They aren't part of the website."}</small>
+          </span>
+        </button>
       )}
-      <p className="panel-hint">Flyers, cards, posters and social images. They export as PDF or pictures and aren't part of the website.</p>
       {newDesign && <NewDesignDialog onClose={() => setNewDesign(false)} />}
       {newPage && <NewPageDialog onClose={() => setNewPage(false)} />}
     </div>

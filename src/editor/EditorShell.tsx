@@ -1,4 +1,7 @@
 import { openScene, useScene } from "../scenes/scenes";
+import { DesignsPanel } from "../design/DesignsPanel";
+import { FramesPanel } from "../motion/FlipbookTools";
+import { onFocusRequest } from "./focusTools";
 import { SceneHost } from "../scenes/SceneHost";
 import { useEffect, useRef, useState } from "react";
 import { LanguagePicker, TranslateDialog } from "../i18n/TranslateDialog";
@@ -41,7 +44,7 @@ import { AskTextHost } from "./askText";
 import { TailwindSync } from "../tailwind/TailwindSync";
 import { VectorSync } from "../vector/VectorTools";
 import { MediaSync } from "../media/MediaTools";
-import { dragPointer, onOpenPanel, RAIL_PANELS, useWorkspace, type RailPanel } from "./workspace";
+import { dragPointer, onOpenPanel, RAIL_PANELS, setFocusTool, useFocusTool, useWorkspace, type FocusTool, type RailPanel } from "./workspace";
 import { Icon, type IconName } from "./icons";
 import { NewMenu, OPEN_COLLECTION } from "./NewMenu";
 import { CollectionTool } from "../data/CollectionTool";
@@ -331,9 +334,16 @@ function ZoomControl() {
 }
 
 function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
-  const { state, commit, undo, redo, load, setMode, focusBlock, editComponent } = useEditor();
+  const { state, undo, redo, load, setMode, focusBlock, editComponent } = useEditor();
   const isolated = state.mode === "edit" && Boolean(state.focusedBlock);
   const makingInPlace = isolated && Boolean(state.componentId && state.componentAnchor);
+  const { page: currentPage, setPage, select } = useEditor();
+  const designing = state.mode === "edit" && Boolean(currentPage.design);
+  const lastWebPage = useRef<string | null>(null);
+  useEffect(() => {
+    if (!currentPage.design) lastWebPage.current = currentPage.id;
+  }, [currentPage.id, currentPage.design]);
+  const leaveDesigns = () => setPage(lastWebPage.current && state.site.pages.some((p) => p.id === lastWebPage.current) ? lastWebPage.current : (state.site.pages.find((p) => !p.design)?.id ?? state.site.pages[0].id));
   const fileRef = useRef<HTMLDivElement>(null);
   const desktopProject = useDesktopProject();
   const clientLocked = useClientLock();
@@ -444,7 +454,7 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
             </span>
           )}
         </div>
-        <div className="topbar-menu" ref={fileRef} hidden={isolated}>
+        <div className="topbar-menu" ref={fileRef} hidden={isolated || designing}>
           <button className="btn topbar-tool" onClick={() => setMenuOpen((open) => !open)}>
             File
           </button>
@@ -490,14 +500,23 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
             }}
           />
         </div>
-        {isolated && <span className="topbar-isolated">Working on one piece</span>}
+        {isolated && (makingInPlace ? <span className="topbar-isolated">Changing its design</span> : <FocusToolSwitch />)}
+        {designing && !isolated && (
+          <>
+            <span className="topbar-isolated">Design tool</span>
+            <button className={cls("btn topbar-tool", palette && "is-active")} aria-pressed={palette} data-palette-toggle onClick={() => workspace.set({ palette: !palette })}>
+              <Icon name="add" size={16} />
+              Add
+            </button>
+          </>
+        )}
         {makingInPlace && (
           <button className={cls("btn topbar-tool", palette && "is-active")} aria-pressed={palette} data-palette-toggle onClick={() => workspace.set({ palette: !palette })}>
             <Icon name="add" size={16} />
             Add a piece
           </button>
         )}
-        {editing && !clientLocked && !isolated && (
+        {editing && !clientLocked && !isolated && !designing && (
           <>
             <span className="topbar-divider" />
             <NewMenu />
@@ -509,7 +528,13 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
         )}
       </div>
 
-      <DeviceBar />
+      {designing ? (
+        <div className="topbar-group device-bar">
+          <ZoomControl />
+        </div>
+      ) : (
+        <DeviceBar />
+      )}
 
       <div className="topbar-group">
         {editing && (
@@ -526,6 +551,15 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
           <button className="btn btn--primary topbar-tool" onClick={() => (makingInPlace ? editComponent(null) : focusBlock(null))}>
             Done
           </button>
+        ) : designing ? (
+          <>
+            <button className="btn topbar-tool" onClick={() => select({ kind: "none" })}>
+              Size and export
+            </button>
+            <button className="btn btn--primary topbar-tool" title="Back to the website" onClick={leaveDesigns}>
+              Done
+            </button>
+          </>
         ) : (
           <>
             <LanguagePicker value={editLang} />
@@ -601,6 +635,27 @@ function Rail({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
   );
 }
 
+function FocusToolSwitch() {
+  const { state, page } = useEditor();
+  const tool = useFocusTool();
+  const focus = state.focusedBlock;
+  const block = focus ? page.sections.find((s) => s.id === focus.sectionId)?.blocks.find((b) => b.id === focus.blockId) : undefined;
+  const tools: [FocusTool, string][] = [
+    [null, "Settings"],
+    ["timeline", "Animate"],
+    ...(block?.type === "flipbook" ? ([["frames", "Frames"]] as [FocusTool, string][]) : [])
+  ];
+  return (
+    <div className="focus-tools" role="tablist" aria-label="What to work on">
+      {tools.map(([id, label]) => (
+        <button key={label} role="tab" aria-selected={tool === id} className={cls(tool === id && "is-active")} onClick={() => setFocusTool(id)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Workspace() {
   const { state } = useEditor();
   const workspace = useWorkspace();
@@ -625,7 +680,13 @@ function Workspace() {
     () =>
       onOpenPanel((panel) => {
         if (panel === "add") set({ palette: true });
-        else if (panel === "timeline") set({ bottomOpen: true });
+        else if (panel === "timeline") {
+          const sel = latest.current.state.selection;
+          if (sel.kind === "block") {
+            latest.current.focusBlock({ sectionId: sel.sectionId, blockId: sel.blockId });
+            setFocusTool("timeline");
+          }
+        }
         else if (panel === "make") setComponents(true);
         else if ((RAIL_PANELS as string[]).includes(panel)) set({ left: panel as RailPanel });
       }),
@@ -633,14 +694,38 @@ function Workspace() {
   );
   const editing = state.mode === "edit";
   useShortcuts();
+  const { page, focusBlock } = useEditor();
+  const focusTool = useFocusTool();
+  const designing = editing && Boolean(page.design);
+  const latest = useRef({ state, focusBlock });
+  latest.current = { state, focusBlock };
+  useEffect(
+    () =>
+      onFocusRequest(({ sectionId, blockId }) => {
+        const f = latest.current.state.focusedBlock;
+        if (f?.blockId !== blockId) latest.current.focusBlock({ sectionId, blockId });
+      }),
+    []
+  );
+  const focusedType = state.focusedBlock ? page.sections.find((s) => s.id === state.focusedBlock!.sectionId)?.blocks.find((b) => b.id === state.focusedBlock!.blockId)?.type : undefined;
+  useEffect(() => {
+    if (!state.focusedBlock) setFocusTool(null);
+    else if (focusTool === "frames" && focusedType !== "flipbook") setFocusTool(null);
+  }, [state.focusedBlock, focusTool, focusedType]);
 
   const isolated = editing && Boolean(state.focusedBlock);
   const makingInPlace = isolated && Boolean(state.componentId && state.componentAnchor);
   const [scene, setScene] = useScene();
   const leftPanel = (panel: RailPanel) =>
     clientLocked && ["layers", "check"].includes(panel) ? <ClientLockedPanel /> : panel === "layers" ? <LayersPanel /> : panel === "pages" ? <PagesPanel /> : panel === "check" ? <CheckPanel /> : <DataPanel />;
-  const left = editing && !isolated ? layout.left : null;
-  const bottom = editing && !clientLocked ? (layout.bottomOpen ? layout.bottomHeight : isolated ? 0 : 40) : 0;
+  const left = editing && !isolated && !designing ? layout.left : null;
+  const toolOpen = editing && isolated && Boolean(focusTool);
+  useEffect(() => {
+    if (!toolOpen) return;
+    const id = requestAnimationFrame(() => document.querySelector(".editor .is-focus-target")?.scrollIntoView({ block: "center", behavior: "smooth" }));
+    return () => cancelAnimationFrame(id);
+  }, [toolOpen, state.focusedBlock?.blockId]);
+  const bottom = toolOpen ? Math.max(260, layout.bottomHeight) : 0;
 
   return (
     <>
@@ -649,10 +734,11 @@ function Workspace() {
       hidden={Boolean(scene)}
       inert={Boolean(scene)}
       className={cls("editor", !editing && "editor--preview")}
-      style={editing ? { gridTemplateColumns: `${isolated ? 0 : 72}px ${left ? layout.leftWidth : 0}px minmax(0, 1fr) ${layout.rightWidth}px`, gridTemplateRows: `60px minmax(0, 1fr) ${bottom}px` } : undefined}
+      style={editing ? { gridTemplateColumns: `${isolated || designing ? 0 : 72}px ${left || (designing && !isolated) ? layout.leftWidth : 0}px minmax(0, 1fr) ${layout.rightWidth}px`, gridTemplateRows: `60px minmax(0, 1fr) ${bottom}px` } : undefined}
     >
       <TopBar workspace={workspace} />
-      {editing && !isolated && <Rail workspace={workspace} />}
+      {editing && !isolated && !designing && <Rail workspace={workspace} />}
+      {designing && !isolated && <DesignsPanel />}
       {editing && left && (
         <aside className="panel panel--left">
           <header className="panel-head">
@@ -690,28 +776,18 @@ function Workspace() {
           />
         </aside>
       )}
-      {editing && !clientLocked && (!isolated || layout.bottomOpen) && (
-        <aside className={cls("panel panel--bottom", !layout.bottomOpen && "is-collapsed")}>
-          {layout.bottomOpen && (
-            <div
-              className="panel-resize panel-resize--bottom"
-              role="separator"
-              aria-orientation="horizontal"
-              onPointerDown={(e) => {
-                const start = layout.bottomHeight;
-                dragPointer(e, (_dx, dy) => setBottomHeight(start - dy), "is-resizing-dock-y");
-              }}
-            />
-          )}
-          <button className="drawer-toggle" aria-expanded={layout.bottomOpen} onClick={() => set({ bottomOpen: !layout.bottomOpen })}>
-            <Icon name={layout.bottomOpen ? "chevronDown" : "chevronRight"} size={14} />
-            Timeline
-          </button>
-          {layout.bottomOpen && (
-            <div className="panel-body">
-              <TimelinePanel />
-            </div>
-          )}
+      {toolOpen && (
+        <aside className="panel panel--bottom focus-tool-panel">
+          <div
+            className="panel-resize panel-resize--bottom"
+            role="separator"
+            aria-orientation="horizontal"
+            onPointerDown={(e) => {
+              const start = Math.max(260, layout.bottomHeight);
+              dragPointer(e, (_dx, dy) => setBottomHeight(start - dy), "is-resizing-dock-y");
+            }}
+          />
+          <div className="panel-body">{focusTool === "frames" ? <FramesPanel /> : <TimelinePanel />}</div>
         </aside>
       )}
       {editing && layout.palette && !clientLocked && (!isolated || makingInPlace) && <Palette onClose={() => set({ palette: false })} onManage={() => setComponents(true)} />}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 export type PanelId = "add" | "layers" | "pages" | "check" | "make" | "data" | "timeline" | "inspector";
 export type RailPanel = "pages" | "layers" | "data" | "check";
@@ -6,6 +6,27 @@ export type RailPanel = "pages" | "layers" | "data" | "check";
 export const RAIL_PANELS: RailPanel[] = ["pages", "layers", "data", "check"];
 
 const OPEN_PANEL_EVENT = "fayteworks:open-panel";
+
+export type FocusTool = "timeline" | "frames" | null;
+
+let focusTool: FocusTool = null;
+const focusToolListeners = new Set<() => void>();
+
+export function setFocusTool(tool: FocusTool) {
+  if (tool === focusTool) return;
+  focusTool = tool;
+  focusToolListeners.forEach((fn) => fn());
+}
+
+export function useFocusTool(): FocusTool {
+  return useSyncExternalStore(
+    (fn) => {
+      focusToolListeners.add(fn);
+      return () => focusToolListeners.delete(fn);
+    },
+    () => focusTool
+  );
+}
 
 export function openPanel(panel: PanelId) {
   window.dispatchEvent(new CustomEvent(OPEN_PANEL_EVENT, { detail: panel }));

@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { findSection } from "../model/ops";
+import { useEditor } from "../state/store";
 import { colorMapOf } from "../blocks/vector";
 import { list, num, str } from "../blocks/util";
 import type { Block, ListItem } from "../model/types";
@@ -142,5 +144,23 @@ export function FlipbookTools({ block, mutate }: { block: Block; mutate: (recipe
         </Suspense>
       )}
     </section>
+  );
+}
+
+export function FramesPanel() {
+  const { state, page, commit } = useEditor();
+  const sel = state.selection;
+  const section = sel.kind === "block" ? findSection(state.site, page.id, sel.sectionId) : undefined;
+  const block = sel.kind === "block" ? section?.blocks.find((b) => b.id === sel.blockId) : undefined;
+  if (!section || !block || block.type !== "flipbook") return <p className="panel-hint frames-empty">Pick a flipbook to edit its frames.</p>;
+  const mutate = (recipe: (b: Block) => void, key?: string) =>
+    commit((draft) => {
+      const b = findSection(draft, page.id, section.id)?.blocks.find((x) => x.id === block.id);
+      if (b) recipe(b);
+    }, key);
+  return (
+    <div className="frames-panel">
+      <FlipbookTools key={block.id} block={block} mutate={mutate} />
+    </div>
   );
 }

@@ -5053,3 +5053,35 @@ body.is-resizing-dock-y, body.is-resizing-dock-y * { cursor: row-resize !importa
 .imported-add small { font-size: 12px; color: var(--ui-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .imported-forget { display: grid; place-items: center; width: 30px; height: 30px; margin-right: 6px; border: 0; border-radius: 8px; background: none; color: var(--ui-muted); cursor: pointer; }
 .imported-forget:hover { background: var(--ui-raised); color: var(--ui-text); }
+
+.focus-tools { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--ui-panel); border: 1px solid var(--ui-border); }
+.focus-tools button { padding: 6px 14px; border: 0; border-radius: 9px; background: none; color: var(--ui-muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.focus-tools button:hover { color: var(--ui-text); }
+.focus-tools button.is-active { background: var(--ui-accent); color: #fff; }
+.focus-tool-panel { position: relative; display: flex; flex-direction: column; border-top: 1px solid var(--ui-border); background: var(--ui-panel); }
+.focus-tool-panel > .panel-body { flex: 1; min-height: 0; overflow: auto; }
+.designs-panel { display: flex; flex-direction: column; }
+.designs-tabs { display: flex; border-bottom: 1px solid var(--ui-border); }
+.designs-tabs button { flex: 1; padding: 14px 10px 12px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--ui-muted); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.designs-tabs button.is-active { color: var(--ui-text); border-bottom-color: var(--ui-accent); }
+.designs-new { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 20px; }
+.designs-new .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.designs-docs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.designs-print { padding: 14px; border-radius: 14px; background: var(--ui-bg); border: 1px solid var(--ui-border); display: flex; flex-direction: column; gap: 8px; }
+.designs-print h3 { margin: 0; font-size: 15px; }
+.designs-print .panel-hint { margin: 0; }
+.pages-panel .inspector-door { width: 100%; margin-top: 6px; }
+.frames-panel { height: 100%; }
+.frames-panel .flipbook-tools { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: auto auto 1fr; gap: 10px 18px; margin: 0; padding: 14px 18px; border: 0; height: 100%; box-sizing: border-box; }
+.frames-panel .flipbook-tools > .panel-heading { grid-column: 1 / -1; margin: 0; }
+.frames-panel .fb-preview { grid-row: 2 / span 2; display: flex; flex-direction: column; gap: 8px; }
+.frames-panel .fb-preview-frame { aspect-ratio: 4 / 3; border-radius: 10px; background: #fff; overflow: hidden; }
+.frames-panel .fb-strip { display: flex; gap: 8px; overflow-x: auto; margin: 0; padding: 4px 2px 8px; }
+.frames-panel .fb-strip li { flex: none; }
+.frames-panel .fb-strip button { width: 110px; }
+.frames-panel .fb-actions { flex-wrap: wrap; }
+.frames-panel .flipbook-tools > .field-hint, .frames-panel .flipbook-tools > .fb-actions { grid-column: 2; }
+.frames-empty { padding: 20px; }
+.focus-tool-panel > .panel-body { padding: 12px 18px; }
+.frames-panel { margin: -12px -18px; }
+.topbar-isolated, .focus-tools button, .topbar-viewports button { white-space: nowrap; }
