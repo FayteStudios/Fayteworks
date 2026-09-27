@@ -1,3 +1,4 @@
+import { forgetImport, listImported, onImportedChange, prepareImported } from "../catalogue/imported";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listBlockDefinitions } from "../blocks/registry";
 import type { BlockCategory, BlockDefinition } from "../blocks/types";
@@ -44,6 +45,35 @@ function Tile({ def, onAdd, onHover }: { def: BlockDefinition; onAdd: () => void
       </span>
       <span className="palette-tile-label">{def.label}</span>
     </button>
+  );
+}
+
+function ImportedPage({ onHover }: { onHover: (text: string) => void }) {
+  const addBlock = useAddBlock();
+  const [items, setItems] = useState(listImported);
+  useEffect(() => onImportedChange(() => setItems(listImported())), []);
+  if (!items.length) return <p className="palette-empty">Pieces you add from the catalogue land here by themselves, ready to use again on any site.</p>;
+  return (
+    <div className="imported-list">
+      {items.map((item) => (
+        <div key={item.id} className="imported-item">
+          <button
+            className="imported-add"
+            onMouseEnter={() => onHover(`${item.name} · from ${item.from}`)}
+            onMouseLeave={() => onHover("")}
+            onClick={async () => addBlock(item.type, { props: await prepareImported(item), size: item.size })}
+          >
+            <strong>{item.name}</strong>
+            <small>
+              {item.type === "vector" ? "Drawing" : "Code"} · {item.from}
+            </small>
+          </button>
+          <button className="imported-forget" aria-label={`Forget ${item.name}`} title="Take it off this list" onClick={() => forgetImport(item.id)}>
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -107,6 +137,9 @@ export function Palette({ onClose, onManage }: { onClose: () => void; onManage: 
               <button className={cls(page === "mine" && "is-active")} onClick={() => setPage("mine")}>
                 Mine
               </button>
+              <button className={cls(page === "imported" && "is-active")} onClick={() => setPage("imported")}>
+                Imported
+              </button>
             </nav>
           )}
           <div className="palette-body">
@@ -120,6 +153,8 @@ export function Palette({ onClose, onManage }: { onClose: () => void; onManage: 
               ) : (
                 <p className="palette-empty">Nothing called “{query.trim()}”. Try Get more… for thousands of extra pieces.</p>
               )
+            ) : page === "imported" ? (
+              <ImportedPage onHover={setHint} />
             ) : page === "mine" ? (
               <div className="palette-mine">
                 <PlaceComponentsGroup excludeId={making?.id} title="Components in this site" />

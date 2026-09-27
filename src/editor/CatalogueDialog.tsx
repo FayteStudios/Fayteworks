@@ -3,6 +3,7 @@ import { desktop, type CaptureResult } from "../platform/desktop";
 import { PlatformImport } from "../share/PlatformImport";
 import { CATALOGUE, CATALOGUE_CATEGORIES, CATALOGUE_LIBRARIES, catalogueBlockProps, type CatalogueItem } from "../catalogue";
 import { listMine, prepareMine, removeMine, type MineItem } from "../catalogue/mine";
+import { rememberImport } from "../catalogue/imported";
 import { fetchComponent, loadTailwindLibraries, loadUiverse, remoteBlockProps, remoteSize, sourceUrl, type RemoteEntry } from "../catalogue/remote";
 import { LICENCES } from "../blocks/code";
 import { themeVars } from "../model/theme";
@@ -163,7 +164,7 @@ function RemotePreview({ entry, dark }: { entry: RemoteEntry; dark: boolean }) {
   );
 }
 
-function Browse({ onAdd }: { onAdd: (props: BlockProps, size: { w: number; h: number }, type?: string) => void }) {
+function Browse({ onAdd }: { onAdd: (props: BlockProps, size: { w: number; h: number }, type?: string, imported?: boolean) => void }) {
   const [mine, setMine] = useState(listMine);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<View>("all");
@@ -274,7 +275,7 @@ function Browse({ onAdd }: { onAdd: (props: BlockProps, size: { w: number; h: nu
     }
     if (entry.mine) {
       remember();
-      return onAdd(await prepareMine(entry.mine), entry.mine.size, entry.mine.type);
+      return onAdd(await prepareMine(entry.mine), entry.mine.size, entry.mine.type, false);
     }
     if (!entry.remote) return;
     setAdding(entry.key);
@@ -564,15 +565,17 @@ export function CatalogueDialog({ onClose }: { onClose: () => void }) {
       </header>
       {tab === "browse" ? (
         <Browse
-          onAdd={(props, size, type = "code") => {
+          onAdd={(props, size, type = "code", imported = true) => {
             addBlock(type, { props, size });
+            if (imported) void rememberImport(type, props, size);
             onClose();
           }}
         />
       ) : tab === "import" ? (
         <ImportCode
-          onAdd={(props, size, type = "code") => {
+          onAdd={(props, size, type = "code", imported = true) => {
             addBlock(type, { props, size });
+            if (imported) void rememberImport(type, props, size);
             onClose();
           }}
         />
@@ -580,6 +583,7 @@ export function CatalogueDialog({ onClose }: { onClose: () => void }) {
         <CaptureFromWebsite
           onAdd={(props, size) => {
             addBlock("code", { props, size });
+            void rememberImport("code", props, size);
             onClose();
           }}
         />
