@@ -279,6 +279,7 @@ export async function buildStaticSite(site: Site, options: StaticSiteOptions = {
   const homePageId = site.pages[0].id;
 
   let needsScript = false;
+  const extensionsEveryPage = extensionCodeFor(site).everyPage;
   const searchEntries: SearchEntry[] = [];
   let usesSearch = false;
   const feedCollections = (site.collections ?? []).filter((c) => c.feed && site.pages.some((p) => p.collectionId === c.id && !p.protect?.password));
@@ -365,7 +366,7 @@ export async function buildStaticSite(site: Site, options: StaticSiteOptions = {
     if (!locked) searchEntries.push({ ...searchEntry(body, dir, page.title === site.name || !page.title ? site.name : page.title, page.seo.description), ...(languages.length > 1 ? { l: lang } : {}) });
     usesSearch ||= body.includes('data-js="search"');
 
-    const pageNeedsScript = /data-(js|reveal|parallax|draw-anim|anim|sound)=/.test(body);
+    const pageNeedsScript = extensionsEveryPage || /data-(js|reveal|parallax|draw-anim|anim|sound)=/.test(body);
     needsScript ||= pageNeedsScript;
     const isHome = page.id === homePageId;
     const title = isHome ? site.name : `${page.title} · ${site.name}`;

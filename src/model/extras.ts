@@ -35,6 +35,8 @@ export interface ExtensionPart {
   blocks: string[];
   css?: string;
   runtime?: Runtime;
+  /** The script also runs on pages without these pieces (it remembers visits, fills forms…). */
+  everyPage?: boolean;
 }
 
 export interface Extension {
@@ -65,13 +67,14 @@ export function extensionsUsedBy(site: Site): Extension[] {
 
 export const allExtensionRuntimes: Runtime[] = extensions.flatMap((e) => [e.runtime, ...(e.parts ?? []).map((p) => p.runtime)]).filter((r): r is Runtime => Boolean(r));
 
-export function extensionCodeFor(site: Site): { css: string; runtimes: Runtime[] } {
+export function extensionCodeFor(site: Site): { css: string; runtimes: Runtime[]; everyPage: boolean } {
   const types = siteBlockTypes(site);
   const used = extensionsUsedBy(site);
   const parts = used.flatMap((e) => (e.parts ?? []).filter((p) => p.blocks.some((b) => types.has(b))));
   return {
     css: [...used.map((e) => e.css ?? ""), ...parts.map((p) => p.css ?? "")].filter(Boolean).join("\n"),
-    runtimes: [...used.map((e) => e.runtime), ...parts.map((p) => p.runtime)].filter((r): r is Runtime => Boolean(r))
+    runtimes: [...used.map((e) => e.runtime), ...parts.map((p) => p.runtime)].filter((r): r is Runtime => Boolean(r)),
+    everyPage: parts.some((p) => p.everyPage)
   };
 }
 
