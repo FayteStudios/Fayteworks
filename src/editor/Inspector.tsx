@@ -1,3 +1,4 @@
+import { openScene } from "../scenes/scenes";
 import { getBlockDefinition } from "../blocks/registry";
 import { localizedProps, useEditingLang, writeProp } from "../i18n/i18n";
 import { needsDescription } from "../quality/altText";
@@ -38,7 +39,7 @@ import { openPanel } from "./workspace";
 import { FlipbookTools } from "../motion/FlipbookTools";
 import { SoundTools } from "../motion/SoundTools";
 import { CollectionTools, ItemPageSetting } from "../data/CollectionTools";
-import { isCardShell, SHELL_OPTIONS, shellOf } from "../model/shells";
+import { isCardShell, SHELL_OPTIONS, shellFields, shellOf } from "../model/shells";
 import { cardLayouts } from "../model/extras";
 import type { PageShell, ShellType } from "../model/types";
 import { Badge, BADGES, Hint } from "./Hint";
@@ -127,9 +128,6 @@ const MOTION_FIELDS: FieldDef[] = [
   }
 ];
 
-function shellFields(type: ShellType): FieldDef[] {
-  return type === "slides" || type === "horizontal" ? [{ key: "dots", label: "Show dots to jump between sections", kind: "toggle" }] : [];
-}
 
 const layoutFields = (cols: number): FieldDef[] => [
   { key: "x", label: "Column", kind: "number", min: 1, max: cols },
@@ -810,8 +808,42 @@ function SectionInspector({ section }: { section: Section }) {
   );
 }
 
+function PageSummary() {
+  const { state, page } = useEditor();
+  const isHome = state.site.pages[0].id === page.id;
+  const doors = [
+    { icon: "page", title: "Page settings", what: "Name, address, layout, password and sharing", open: () => openScene({ kind: "page", pageId: page.id }) },
+    { icon: "palette", title: "Look", what: "Colours, fonts, corners and style sets", open: () => openScene({ kind: "look", tab: "colours" }) },
+    { icon: "settings", title: "Site settings", what: "Site name, address, tab icon, connections", open: () => openScene({ kind: "site", tab: "site" }) }
+  ];
+  return (
+    <>
+      <header className="inspector-header">
+        <span className="inspector-kind">◰</span>
+        <div>
+          <h2>{page.title}</h2>
+          <span className="inspector-sub">{isHome ? "The home page" : `/${page.slug}`}</span>
+        </div>
+      </header>
+      <div className="inspector-doors">
+        {doors.map((d) => (
+          <button key={d.title} className="inspector-door" onClick={d.open}>
+            <Icon name={d.icon} size={20} />
+            <span>
+              <strong>{d.title}</strong>
+              <small>{d.what}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+      <p className="field-hint">Click a section or a piece on the canvas to change it.</p>
+    </>
+  );
+}
+
 function PageAndThemeInspector() {
   const { state, page, commit } = useEditor();
+  if (!page.design) return <PageSummary />;
   const pageEditLang = useEditingLang(state.site);
   const pageId = page.id;
   const isHome = state.site.pages[0].id === pageId;

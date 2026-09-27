@@ -102,7 +102,6 @@ export const isCustomFont = (value: string) => value.startsWith(CUSTOM_FONT_PREF
 export const FONT_FORMATS: Record<string, CustomFont["format"]> = { woff2: "woff2", woff: "woff", ttf: "truetype", otf: "opentype" };
 export const FONT_MIME: Record<CustomFont["format"], string> = { woff2: "font/woff2", woff: "font/woff", truetype: "font/ttf", opentype: "font/otf" };
 
-/** @font-face rules for the site's own fonts; `url` turns a stored file into the address to load it from. */
 export function fontFaceCss(fonts: CustomFont[] | undefined, url: (src: string) => string): string {
   return (fonts ?? [])
     .map((f) => `@font-face { font-family: "${f.family.replace(/["\\]/g, "")}"; src: url("${url(f.src)}") format("${f.format}"); font-weight: 100 900; font-display: swap; }`)

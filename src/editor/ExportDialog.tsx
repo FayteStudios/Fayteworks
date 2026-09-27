@@ -1,3 +1,4 @@
+import { allThemes } from "../model/styles";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { saveVersion } from "../history/versions";
 import { checkSite } from "../quality/prepublish";
@@ -77,7 +78,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     const found = checkSite(site);
     return { total: found.length, fix: found.filter((i) => i.severity === "fix").length };
   }, [site]);
-  const googleFonts = themeGoogleFonts(site.theme);
+  const googleFonts = [...new Map(allThemes(site).flatMap(themeGoogleFonts).map((f) => [f.family, f])).values()];
   const [fontHosting, setFontHosting] = useState<FontHosting>("embed");
   const [optimise, setOptimise] = useState(true);
   const [config, setConfig] = useState<ProjectConfig>({});

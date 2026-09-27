@@ -1,3 +1,5 @@
+import { openScene, useScene } from "../scenes/scenes";
+import { SceneHost } from "../scenes/SceneHost";
 import { useEffect, useRef, useState } from "react";
 import { LanguagePicker, TranslateDialog } from "../i18n/TranslateDialog";
 import { useEditingLang } from "../i18n/i18n";
@@ -74,6 +76,7 @@ function useShortcuts() {
       if (isTypingTarget(event.target) || state.mode !== "edit") {
         return;
       }
+      if (document.querySelector(".scene") && !(mod && (key === "z" || key === "y"))) return;
       if (mod && key === "z") {
         event.preventDefault();
         if (event.shiftKey) {
@@ -439,16 +442,9 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
           <Icon name="grid" size={16} />
         </span>
         <div className="topbar-site">
-          <input
-            className="topbar-name"
-            value={state.site.name}
-            aria-label="Site name"
-            onChange={(e) =>
-              commit((draft) => {
-                draft.name = e.target.value;
-              }, "site.name")
-            }
-          />
+          <button className="topbar-name" title="Site settings" onClick={() => openScene({ kind: "site", tab: "site" })}>
+            {state.site.name || "Untitled site"}
+          </button>
           {desktopProject && (
             <span className={`topbar-save topbar-save--${desktopProject.saveStatus}`} title={desktopProject.saveStatus === "error" ? desktopProject.saveError : desktopProject.project.path}>
               {desktopProject.saveStatus === "saving" ? "Saving…" : desktopProject.saveStatus === "error" ? "Not saved!" : "Saved"}
@@ -648,13 +644,18 @@ function Workspace() {
 
   const isolated = editing && Boolean(state.focusedBlock);
   const makingInPlace = isolated && Boolean(state.componentId && state.componentAnchor);
+  const [scene, setScene] = useScene();
   const leftPanel = (panel: RailPanel) =>
     clientLocked && ["layers", "check"].includes(panel) ? <ClientLockedPanel /> : panel === "layers" ? <LayersPanel /> : panel === "pages" ? <PagesPanel /> : panel === "check" ? <CheckPanel /> : <DataPanel />;
   const left = editing && !isolated ? layout.left : null;
   const bottom = editing && !clientLocked ? (layout.bottomOpen ? layout.bottomHeight : isolated ? 0 : 40) : 0;
 
   return (
+    <>
+    {scene && <SceneHost scene={scene} setScene={setScene} />}
     <div
+      hidden={Boolean(scene)}
+      inert={Boolean(scene)}
       className={cls("editor", !editing && "editor--preview")}
       style={editing ? { gridTemplateColumns: `${isolated ? 0 : 72}px ${left ? layout.leftWidth : 0}px minmax(0, 1fr) ${layout.rightWidth}px`, gridTemplateRows: `60px minmax(0, 1fr) ${bottom}px` } : undefined}
     >
@@ -725,6 +726,7 @@ function Workspace() {
       {components && <ComponentsDialog onClose={() => setComponents(false)} />}
       {collectionId && <CollectionTool key={collectionId} collectionId={collectionId} startPost={startPost} onClose={() => setCollectionId(null)} />}
     </div>
+    </>
   );
 }
 

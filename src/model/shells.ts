@@ -1,4 +1,5 @@
 import type { ShellOption } from "./extras";
+import type { FieldDef } from "./fields";
 import { slugify } from "../util/slug";
 import type { Page, PageShell, Section, ShellType } from "./types";
 
@@ -29,4 +30,8 @@ export function sectionAnchors(sections: Section[]): string[] {
     used.add(anchor);
     return anchor;
   });
+}
+
+export function shellFields(type: ShellType): FieldDef[] {
+  return type === "slides" || type === "horizontal" ? [{ key: "dots", label: "Show dots to jump between sections", kind: "toggle" }] : [];
 }

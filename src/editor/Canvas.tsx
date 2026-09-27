@@ -1,3 +1,4 @@
+import { pageTheme } from "../model/styles";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { DESIGN_PRESETS, describeSize, SHEET_WIDTH } from "../model/design";
 import { createFooterSection, createHeaderSection } from "../model/factory";
@@ -277,7 +278,7 @@ export function Canvas() {
       className={["site-root", editing && state.freeform && "site-root--freeform", design && "site-root--design"].filter(Boolean).join(" ")}
       data-orientation={deviceSize ? (deviceSize.width > deviceSize.height ? "landscape" : "portrait") : undefined}
       style={{
-        ...themeVars(site.theme),
+        ...themeVars(pageTheme(site, page)),
         ...(editing ? {} : { "--shell-vh": deviceSize ? `${deviceSize.height}px` : "calc(100vh - 88px)" })
       } as CSSProperties}
       onClick={editing ? undefined : handlePreviewClick}

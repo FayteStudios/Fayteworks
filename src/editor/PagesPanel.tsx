@@ -1,10 +1,42 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { openScene } from "../scenes/scenes";
+import { Icon } from "./icons";
 import { useClientLock } from "../client/clientMode";
 import { NewDesignDialog } from "../design/NewDesignDialog";
 import { DESIGN_PRESETS, describeSize } from "../model/design";
 import { useEditor } from "../state/store";
 import { cls } from "../util/cls";
 import { NewPageDialog } from "./NewMenu";
+
+function PageMenu({ onSettings, onDelete }: { onSettings: () => void; onDelete?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener("pointerdown", away);
+    return () => window.removeEventListener("pointerdown", away);
+  }, [open]);
+  return (
+    <div className="pages-menu" ref={ref}>
+      <button className="pages-more" aria-label="Page options" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Icon name="more" size={16} />
+      </button>
+      {open && (
+        <div className="pages-menu-list" role="menu">
+          <button role="menuitem" onClick={() => (setOpen(false), onSettings())}>
+            Page settings
+          </button>
+          {onDelete && (
+            <button role="menuitem" className="is-danger" onClick={() => (setOpen(false), onDelete())}>
+              Delete page
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function PagesPanel() {
   const { state, page: currentPage, commit, setPage } = useEditor();
@@ -34,11 +66,7 @@ export function PagesPanel() {
               <span className="pages-title">{page.title}</span>
               <span className="pages-slug">/{index === 0 ? "" : page.slug}</span>
             </button>
-            {index > 0 && !locked && (
-              <button className="pages-delete" title="Delete page" onClick={() => deletePage(page.id)}>
-                ✕
-              </button>
-            )}
+            {!locked && <PageMenu onSettings={() => openScene({ kind: "page", pageId: page.id })} onDelete={index > 0 ? () => deletePage(page.id) : undefined} />}
           </li>
         ))}
       </ul>
@@ -47,7 +75,7 @@ export function PagesPanel() {
           + New page…
         </button>
       )}
-      <p className="panel-hint">The first page is your home page. Click empty space on the canvas for a page's settings.</p>
+      <p className="panel-hint">The first page is your home page. ⋯ next to a page opens its settings.</p>
 
       <h3 className="panel-heading pages-designs-heading">Designs</h3>
       {designs.length > 0 && (

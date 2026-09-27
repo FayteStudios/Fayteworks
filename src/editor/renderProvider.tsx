@@ -8,12 +8,13 @@ import { assetUrl, useAssetVersion } from "../state/assets";
 import { useEditor } from "../state/store";
 import { fontFaceCss, googleFontsCssUrl, themeGoogleFonts } from "../model/fonts";
 import { useStyleText, useStylesheet } from "./useStylesheet";
+import { allThemes } from "../model/styles";
 
 export function EditorRenderProvider({ children }: { children: ReactNode }) {
   const { state, page } = useEditor();
   const assetVersion = useAssetVersion();
   const { pages, theme } = state.site;
-  useStylesheet("theme-fonts", googleFontsCssUrl(themeGoogleFonts(theme)));
+  useStylesheet("theme-fonts", googleFontsCssUrl(allThemes(state.site).flatMap(themeGoogleFonts)));
   useStyleText("site-font-files", useMemo(() => fontFaceCss(state.site.fonts, assetUrl), [state.site.fonts, assetVersion]));
 
   const lang = useEditingLang(state.site);

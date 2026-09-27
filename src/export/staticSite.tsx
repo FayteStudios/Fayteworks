@@ -14,6 +14,7 @@ import { PageRenderer } from "../site/SiteRenderer";
 import siteCss from "../site/site.css?raw";
 import { initSite } from "../site/runtime";
 import { cardLayouts } from "../model/extras";
+import { allThemes, styleClass, styleOf, styleSetsCss } from "../model/styles";
 import { collectMediaRefs, dataUrlToBlob, EDITOR_ONLY_PROPS, extensionFor, getAsset, hashBlob, isAssetRef } from "../state/assets";
 import type { OutputFile } from "./zip";
 import { thirdPartyNotices } from "../catalogue/notices";
@@ -243,7 +244,7 @@ function themeCss(site: Site): string {
   const vars = Object.entries(themeVars(site.theme))
     .map(([name, value]) => `  ${name}: ${value};`)
     .join("\n");
-  return `:root {\n${vars}\n}\n\n`;
+  return `:root {\n${vars}\n}\n\n${styleSetsCss(site)}\n`;
 }
 
 function absoluteUrl(baseUrl: string, path: string): string {
@@ -253,7 +254,7 @@ function absoluteUrl(baseUrl: string, path: string): string {
 export async function buildStaticSite(site: Site, options: StaticSiteOptions = { fonts: "embed" }): Promise<StaticSiteResult> {
   assertPublishable(site);
   const files: OutputFile[] = [];
-  const fontsUrl = googleFontsCssUrl(themeGoogleFonts(site.theme));
+  const fontsUrl = googleFontsCssUrl(allThemes(site).flatMap(themeGoogleFonts));
   let fontCss = "";
   let fontFileCount = 0;
   let fontWarning: string | undefined;
@@ -402,13 +403,14 @@ export async function buildStaticSite(site: Site, options: StaticSiteOptions = {
       .filter(Boolean)
       .join("\n    ");
 
+    const pageStyle = styleOf(site, templatePage);
     const shownBody = locked ? await lockedBody(body, templatePage.protect!.password, site.name, templatePage.protect!.hint ?? "") : body;
     const html = `<!doctype html>
 <html lang="${escapeHtml(lang)}"${locked ? " data-fw-locked" : ""}>
   <head>
     ${head}
   </head>
-  <body class="site-root">
+  <body class="site-root${pageStyle ? ` ${styleClass(pageStyle)}` : ""}">
 ${shownBody}${services.bodyEnd.length ? `\n    ${services.bodyEnd.join("\n    ")}` : ""}
   </body>
 </html>

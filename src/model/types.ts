@@ -153,6 +153,7 @@ export interface Page {
   sections: Section[];
   translations?: Record<string, { title?: string; description?: string }>;
   protect?: { password: string; hint?: string };
+  styleId?: string;
 }
 
 export interface CustomFont {
@@ -209,8 +210,14 @@ export interface Site {
   mediaCredits?: Record<string, { title: string; creator: string; license: string; source: string }>;
   guides?: Record<string, number[]>;
   collections?: Collection[];
-  /** Font files brought in by the person (see model/fonts.ts). */
   fonts?: CustomFont[];
+  styles?: StyleSet[];
+}
+
+export interface StyleSet {
+  id: string;
+  name: string;
+  theme: Partial<Theme>;
 }
 
 export type CollectionFieldType = "text" | "longtext" | "markdown" | "number" | "image" | "link" | "date" | "boolean";
