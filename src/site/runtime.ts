@@ -1,3 +1,4 @@
+import type { FayteWorksApi, VisitorSave } from "./visitor";
 export function initSite(root: Document | HTMLElement): () => void {
   const cleanups: Array<() => void> = [];
   const doc = root instanceof Document ? root : root.ownerDocument;
@@ -9,6 +10,114 @@ export function initSite(root: Document | HTMLElement): () => void {
   };
   const reducedMotion = doc.defaultView?.matchMedia("(prefers-reduced-motion: reduce)").matches ?? false;
   const flag = host.matches(".site-root") ? host : host.querySelector<HTMLElement>(".site-root") ?? host;
+
+  const win = doc.defaultView as (Window & { fayteworks?: FayteWorksApi; AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }) | null;
+  if (win && !win.fayteworks) {
+    const KEY = "fw-visitor";
+    const now = () => new Date().toISOString();
+    const fresh = (): VisitorSave => ({ visitorId: Math.random().toString(36).slice(2, 12), xp: 0, level: 1, visited: [], unlocked: {}, items: [], notes: {}, preferences: {}, firstVisit: now(), lastVisit: now() });
+    let stored: VisitorSave | null = null;
+    try {
+      stored = JSON.parse(win.localStorage.getItem(KEY) ?? "null");
+    } catch {
+      stored = null;
+    }
+    let save: VisitorSave = stored ? { ...fresh(), ...stored } : fresh();
+    const returning = Boolean(stored && Date.now() - Date.parse(stored.lastVisit) > 30 * 60 * 1000);
+    const listeners = new Set<(s: VisitorSave) => void>();
+    const write = (next: VisitorSave) => {
+      save = { ...next, lastVisit: now() };
+      try {
+        win.localStorage.setItem(KEY, JSON.stringify(save));
+      } catch {
+        save = { ...save };
+      }
+      listeners.forEach((fn) => fn(save));
+    };
+    let audio: AudioContext | null = null;
+    const muted = () => {
+      try {
+        return win.localStorage.getItem("fw-sound") === "off";
+      } catch {
+        return false;
+      }
+    };
+    const tone = (ctx: AudioContext, at: number, freq: number, length: number, type: OscillatorType, volume: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, at);
+      gain.gain.setValueAtTime(volume, at);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + length);
+    };
+    const noise = (ctx: AudioContext, at: number, length: number, freq: number, volume: number) => {
+      const size = Math.max(1, Math.floor(ctx.sampleRate * length));
+      const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < size; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / size, 4);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const band = ctx.createBiquadFilter();
+      band.type = "bandpass";
+      band.frequency.value = freq;
+      band.Q.value = 2;
+      const gain = ctx.createGain();
+      gain.gain.value = volume;
+      src.connect(band).connect(gain).connect(ctx.destination);
+      src.start(at);
+    };
+    win.fayteworks = {
+      memory: {
+        get: () => structuredClone(save),
+        update: (patch) => write({ ...save, ...patch }),
+        addXp: (amount) => {
+          const xp = Math.max(0, save.xp + amount);
+          write({ ...save, xp, level: 1 + Math.floor(xp / 100) });
+        },
+        unlock: (name) => write({ ...save, unlocked: { ...save.unlocked, [name]: true } }),
+        has: (name) => Boolean(save.unlocked[name]),
+        addItem: (item) => write({ ...save, items: [...save.items.filter((i) => i.id !== item.id), item] }),
+        visit: (path) => !save.visited.includes(path) && write({ ...save, visited: [...save.visited, path].slice(-200) }),
+        remember: (key, value) => write({ ...save, notes: { ...save.notes, [key]: value } }),
+        recall: <T,>(key: string) => save.notes[key] as T | undefined,
+        forget: () => {
+          try {
+            win.localStorage.removeItem(KEY);
+          } catch {
+            return;
+          }
+          save = fresh();
+          listeners.forEach((fn) => fn(save));
+        },
+        returning,
+        on: (fn) => {
+          listeners.add(fn);
+          return () => listeners.delete(fn);
+        }
+      },
+      sound: {
+        muted,
+        play: (kind) => {
+          if (muted()) return;
+          const Ctx = win.AudioContext ?? win.webkitAudioContext;
+          if (!Ctx) return;
+          const ctx = (audio ??= new Ctx());
+          const t = ctx.currentTime + 0.005;
+          if (kind === "click") noise(ctx, t, 0.03, 2400, 0.5);
+          else if (kind === "snap") (noise(ctx, t, 0.02, 3200, 0.45), tone(ctx, t, 180, 0.06, "square", 0.05));
+          else if (kind === "pageTurn") noise(ctx, t, 0.25, 900, 0.18);
+          else if (kind === "gear") (noise(ctx, t, 0.015, 1500, 0.35), noise(ctx, t + 0.05, 0.015, 1300, 0.25));
+          else if (kind === "blip") tone(ctx, t, 660 + Math.random() * 120, 0.05, "square", 0.04);
+          else if (kind === "unlock") [523, 659, 784].forEach((f, i) => tone(ctx, t + i * 0.07, f, 0.18, "triangle", 0.12));
+          else if (kind === "itemGet") [784, 988, 1319].forEach((f, i) => tone(ctx, t + i * 0.06, f, 0.14, "square", 0.05));
+        }
+      },
+      reducedMotion
+    };
+  }
 
   const reveals = all("[data-reveal]");
   if (reveals.length && "IntersectionObserver" in (doc.defaultView ?? {}) && !reducedMotion) {
