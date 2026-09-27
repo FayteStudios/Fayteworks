@@ -104,7 +104,7 @@ export const FONT_MIME: Record<CustomFont["format"], string> = { woff2: "font/wo
 
 export function fontFaceCss(fonts: CustomFont[] | undefined, url: (src: string) => string): string {
   return (fonts ?? [])
-    .map((f) => `@font-face { font-family: "${f.family.replace(/["\\]/g, "")}"; src: url("${url(f.src)}") format("${f.format}"); font-weight: 100 900; font-display: swap; }`)
+    .map((f) => `@font-face { font-family: "${f.family.replace(/["\\]/g, "")}"; src: url("${url(f.src)}") format("${f.format}"); font-weight: ${f.weight ?? "100 900"}; font-display: swap; }`)
     .join("\n");
 }
 

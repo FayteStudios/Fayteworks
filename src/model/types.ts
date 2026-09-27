@@ -161,9 +161,9 @@ export interface CustomFont {
   family: string;
   src: string;
   format: "woff2" | "woff" | "truetype" | "opentype";
-  /** What its licence allows, as the person told us when importing it. */
   licence: "commercial" | "personal" | "unknown";
   from?: string;
+  weight?: number;
 }
 
 export interface Theme {

@@ -19,12 +19,13 @@ import { useEditor } from "../state/store";
 import { cls } from "../util/cls";
 import { createId } from "../util/id";
 import { useStylesheet } from "./useStylesheet";
+import { fontFromFile } from "../fonts/catalogue";
 
 const PREVIEW_TEXT = [...new Set(GOOGLE_FONTS.map((f) => f.family).join("") + "Aa")].join("");
 
 const CATEGORIES: FontCategory[] = ["sans", "serif", "display", "mono"];
 
-const FONT_SOURCES = [
+export const FONT_SOURCES = [
   { name: "Google Fonts", url: "https://fonts.google.com", note: "Over 1,500 families, all free for any use. Many are already in this list." },
   { name: "Fontshare", url: "https://www.fontshare.com", note: "Quality fonts, free for personal and commercial use." },
   { name: "Font Squirrel", url: "https://www.fontsquirrel.com", note: "Hand-picked fonts that are free for commercial use." },
@@ -33,13 +34,13 @@ const FONT_SOURCES = [
   { name: "dafont", url: "https://www.dafont.com", note: "Huge and fun, but many are for personal use only. Tick “100% Free” or “Public domain / GPL / OFL” in its filters." }
 ];
 
-const LICENCES: { value: CustomFont["licence"]; label: string; what: string }[] = [
+export const LICENCES: { value: CustomFont["licence"]; label: string; what: string }[] = [
   { value: "commercial", label: "Free for any use", what: "OFL, Apache, public domain, or a licence you bought." },
   { value: "personal", label: "Personal use only", what: "Fine for your own hobby site, not for a business or client." },
   { value: "unknown", label: "Not sure", what: "You'll get a reminder to check before publishing." }
 ];
 
-function familyFromFile(name: string): string {
+export function familyFromFile(name: string): string {
   return name
     .replace(/\.(woff2?|ttf|otf)$/i, "")
     .replace(/[-_](regular|variable|vf|webfont)$/i, "")
@@ -66,9 +67,9 @@ export function FontPicker({ value, onChange }: { value: string; onChange: (valu
     const format = FONT_FORMATS[ext];
     if (!format) return setError("Use a .ttf, .otf, .woff or .woff2 file.");
     const family = pending.family.trim() || familyFromFile(pending.file.name);
-    const src = await putAsset(new Blob([pending.file], { type: FONT_MIME[format] }));
+    const font = await fontFromFile(pending.file, family, format, pending.licence);
     commit((draft) => {
-      draft.fonts = [...(draft.fonts ?? []).filter((x) => x.family !== family), { id: createId("font"), family, src, format, licence: pending.licence }];
+      draft.fonts = [...(draft.fonts ?? []).filter((x) => x.family !== family), font];
     });
     setPending(null);
     choose(CUSTOM_FONT_PREFIX + family);

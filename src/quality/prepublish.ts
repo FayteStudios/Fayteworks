@@ -1,3 +1,4 @@
+import { allThemes } from "../model/styles";
 import { BLUESKY_POST, GISCUS_ID, GISCUS_REPO, MASTODON_POST } from "../blocks/blog";
 import { strongPassword } from "../export/protect";
 import { isExampleLink } from "../social/platforms";
@@ -169,7 +170,7 @@ export function checkSite(site: Site, sizes: Map<string, number> = new Map()): P
   for (const [title, n] of titles) if (n > 1) add({ key: `dupe:${title}`, category: "Search engines", severity: "consider", message: `${n} pages are called “${title}”.`, how: "Give each page its own title so people (and search engines) can tell them apart." });
   if (webPages[0] && !webPages[0].seo.image) add({ key: "ogimage", category: "Search engines", severity: "consider", message: "The home page has no share picture.", how: "Page settings → Social image: shown when the site is shared in chats and social apps." });
 
-  const usedFonts = new Set([site.theme.headingFont, site.theme.bodyFont]);
+  const usedFonts = new Set(allThemes(site).flatMap((t) => [t.headingFont, t.bodyFont]));
   for (const f of site.fonts ?? []) {
     if (!usedFonts.has(`uf:${f.family}`) || f.licence === "commercial") continue;
     add({
@@ -177,7 +178,7 @@ export function checkSite(site: Site, sizes: Map<string, number> = new Map()): P
       category: "Setup",
       severity: f.licence === "personal" ? "fix" : "consider",
       message: f.licence === "personal" ? `The font “${f.family}” is for personal use only.` : `Check the licence of the font “${f.family}”.`,
-      how: f.licence === "personal" ? "Fine for your own hobby site; for a business or a client, buy a commercial licence or pick a free font (Theme → fonts)." : "Look for a licence file that came with it, or its page on the site you got it from. OFL, Apache and public domain fonts are free to use anywhere."
+      how: f.licence === "personal" ? "Fine for your own hobby site; for a business or a client, buy a commercial licence or pick a free font (Look → Fonts)." : "Look for a licence file that came with it, or its page on the site you got it from. OFL, Apache and public domain fonts are free to use anywhere."
     });
   }
 

@@ -4,6 +4,7 @@ import { useEditor } from "../state/store";
 import { cls } from "../util/cls";
 import { PageScene } from "./PageScene";
 import { SiteScene } from "./SiteScene";
+import { LookScene } from "./LookScene";
 import type { LookTab, Scene } from "./scenes";
 
 const LOOK_TABS: { id: LookTab; label: string }[] = [
@@ -64,6 +65,8 @@ export function SceneHost({ scene, setScene, children }: { scene: Scene; setScen
           <PageScene pageId={scene.pageId} />
         ) : scene.kind === "site" ? (
           <SiteScene tab={scene.tab} setTab={(tab) => setScene({ kind: "site", tab })} />
+        ) : scene.kind === "look" ? (
+          <LookScene tab={scene.tab} setTab={(tab) => setScene({ kind: "look", tab })} />
         ) : (
           children
         )}
