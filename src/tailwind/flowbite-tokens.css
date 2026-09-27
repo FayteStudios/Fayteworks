@@ -1,0 +1,113 @@
+@theme {
+  --text-2xs: 0.625rem;
+  --spacing-8xl: 90rem;
+  --leading-9: 36px;
+  --leading-7: 28px;
+  --leading-8: 32px;
+  --leading-6: 24px;
+  --leading-4: 16px;
+  --leading-none: 1;
+  --leading-5: 20px;
+  --tracking-tighter: -0.8px;
+  --leading-heading-none: 60px;
+  --tracking-tight: -0.4px;
+
+  --radius-0: 0px;
+  --radius-xxs: 2px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-lg: 16px;
+  --default-border-width: 1px;
+
+  --color-fg-success: var(--color-emerald-700);
+  --color-fg-success-strong: var(--color-emerald-900);
+  --color-fg-danger: var(--color-rose-700);
+  --color-fg-danger-strong: var(--color-rose-900);
+  --color-fg-warning-subtle: var(--color-orange-600);
+  --color-fg-warning: var(--color-orange-900);
+  --color-fg-yellow: var(--color-yellow-400);
+  --color-fg-disabled: var(--color-gray-400);
+  --color-fg-purple: var(--color-purple-600);
+  --color-fg-cyan: var(--color-cyan-600);
+  --color-fg-indigo: var(--color-indigo-600);
+  --color-fg-pink: var(--color-pink-600);
+  --color-fg-lime: var(--color-lime-600);
+
+  --color-success-soft: var(--color-emerald-50);
+  --color-success: var(--color-emerald-700);
+  --color-success-medium: var(--color-emerald-100);
+  --color-success-strong: var(--color-emerald-800);
+  --color-danger-soft: var(--color-rose-50);
+  --color-danger: var(--color-rose-700);
+  --color-danger-medium: var(--color-rose-100);
+  --color-danger-strong: var(--color-rose-800);
+  --color-warning-soft: var(--color-orange-50);
+  --color-warning: var(--color-orange-500);
+  --color-warning-medium: var(--color-orange-100);
+  --color-warning-strong: var(--color-orange-700);
+  --color-dark-soft: var(--color-gray-800);
+  --color-dark: var(--color-gray-800);
+  --color-dark-strong: var(--color-gray-900);
+  --color-disabled: var(--color-gray-100);
+  --color-purple: var(--color-purple-500);
+  --color-sky: var(--color-sky-500);
+  --color-teal: var(--color-teal-600);
+  --color-pink: var(--color-pink-600);
+  --color-cyan: var(--color-cyan-500);
+  --color-fuchsia: var(--color-fuchsia-600);
+  --color-indigo: var(--color-indigo-600);
+  --color-orange: var(--color-orange-400);
+  --color-gray: var(--color-gray-300);
+  --color-success-subtle: var(--color-emerald-200);
+  --color-danger-subtle: var(--color-rose-200);
+  --color-warning-subtle: var(--color-orange-200);
+  --color-dark-subtle: var(--color-gray-800);
+  --color-dark-backdrop: var(--color-gray-950);
+}
+
+@theme {
+  --radius-base: var(--radius);
+
+  --color-heading: var(--text);
+  --color-body: color-mix(in oklab, var(--text) 72%, var(--surface));
+  --color-body-subtle: var(--muted);
+
+  --color-fg-brand-subtle: color-mix(in oklab, var(--accent) 35%, white);
+  --color-fg-brand: var(--accent);
+  --color-fg-brand-strong: color-mix(in oklab, var(--accent) 75%, black);
+
+  --color-brand-softer: color-mix(in oklab, var(--accent) 6%, var(--surface));
+  --color-brand-soft: color-mix(in oklab, var(--accent) 12%, var(--surface));
+  --color-brand: var(--accent);
+  --color-brand-medium: color-mix(in oklab, var(--accent) 30%, var(--surface));
+  --color-brand-strong: color-mix(in oklab, var(--accent) 82%, black);
+  --color-brand-subtle: color-mix(in oklab, var(--accent) 30%, var(--surface));
+  --color-brand-light: color-mix(in oklab, var(--accent) 85%, white);
+
+  --color-neutral-primary-soft: var(--surface);
+  --color-neutral-primary: var(--surface);
+  --color-neutral-primary-medium: var(--surface);
+  --color-neutral-primary-strong: var(--surface);
+  --color-neutral-secondary-soft: color-mix(in oklab, var(--text) 3%, var(--surface));
+  --color-neutral-secondary: color-mix(in oklab, var(--text) 3%, var(--surface));
+  --color-neutral-secondary-medium: color-mix(in oklab, var(--text) 4%, var(--surface));
+  --color-neutral-secondary-strong: color-mix(in oklab, var(--text) 5%, var(--surface));
+  --color-neutral-secondary-strongest: color-mix(in oklab, var(--text) 6%, var(--surface));
+  --color-neutral-tertiary-soft: color-mix(in oklab, var(--text) 7%, var(--surface));
+  --color-neutral-tertiary: color-mix(in oklab, var(--text) 8%, var(--surface));
+  --color-neutral-tertiary-medium: color-mix(in oklab, var(--text) 9%, var(--surface));
+  --color-neutral-quaternary: color-mix(in oklab, var(--text) 13%, var(--surface));
+  --color-neutral-quaternary-medium: color-mix(in oklab, var(--text) 14%, var(--surface));
+
+  --color-buffer: var(--surface);
+  --color-buffer-medium: var(--surface);
+  --color-buffer-strong: var(--surface);
+  --color-muted: color-mix(in oklab, var(--text) 3%, var(--surface));
+  --color-light-subtle: color-mix(in oklab, var(--text) 7%, var(--surface));
+  --color-light: color-mix(in oklab, var(--text) 7%, var(--surface));
+  --color-light-medium: color-mix(in oklab, var(--text) 8%, var(--surface));
+  --color-default-subtle: color-mix(in oklab, var(--text) 13%, var(--surface));
+  --color-default: color-mix(in oklab, var(--text) 13%, var(--surface));
+  --color-default-medium: color-mix(in oklab, var(--text) 14%, var(--surface));
+  --color-default-strong: color-mix(in oklab, var(--text) 15%, var(--surface));
+}

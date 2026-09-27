@@ -1,0 +1,72 @@
+{
+  "name": "fayteworks",
+  "private": true,
+  "version": "0.8.0",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "desktop": "npm run build && node desktop/start.mjs",
+    "desktop:dev": "node desktop/dev.mjs",
+    "desktop:dist": "npm run build && electron-builder --win nsis",
+    "desktop:release": "npm run build && electron-builder --win nsis --publish always"
+  },
+  "devDependencies": {
+    "@fontsource-variable/dm-sans": "^5.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "imagetracerjs": "^1.2.6",
+    "immer": "^11.1.18",
+    "mediabunny": "^1.60.0",
+    "modern-screenshot": "^4.7.0",
+    "paper": "^0.12.18",
+    "qrcode-generator": "^2.0.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "simple-icons": "^16.32.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  },
+  "description": "FayteWorks: a visual website builder that runs on your computer and publishes plain HTML you own.",
+  "main": "desktop/main.mjs",
+  "build": {
+    "appId": "com.fayte.fayteworks",
+    "productName": "FayteWorks",
+    "files": [
+      "dist/**",
+      "desktop/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "FayteWorks"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "FayteStudios",
+        "repo": "Fayteworks",
+        "releaseType": "draft"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}
