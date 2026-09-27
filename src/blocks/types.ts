@@ -3,7 +3,7 @@ import type { FieldDef } from "../model/fields";
 import type { BlockProps, Site } from "../model/types";
 import type { RenderContext } from "../site/renderContext";
 
-export type BlockCategory = "Navigation" | "Text" | "Media" | "Interactive" | "Content" | "Layout" | "Actions" | "Social" | "Services";
+export type BlockCategory = "Navigation" | "Text" | "Media" | "Interactive" | "Content" | "Layout" | "Actions" | "Social" | "Services" | "Toybox";
 
 export interface BlockMeta {
   id: string;

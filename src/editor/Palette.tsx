@@ -19,7 +19,8 @@ const PAGES: { id: string; label: string; categories: BlockCategory[] }[] = [
   { id: "content", label: "Content", categories: ["Content", "Interactive"] },
   { id: "social", label: "Social", categories: ["Social"] },
   { id: "services", label: "Selling & services", categories: ["Services"] },
-  { id: "site", label: "Site parts", categories: ["Navigation"] }
+  { id: "site", label: "Site parts", categories: ["Navigation"] },
+  { id: "toybox", label: "Toybox", categories: ["Toybox"] }
 ];
 
 function Tile({ def, onAdd, onHover }: { def: BlockDefinition; onAdd: () => void; onHover: (text: string) => void }) {
@@ -129,7 +130,7 @@ export function Palette({ onClose, onManage }: { onClose: () => void; onManage: 
           )}
           {!q && (
             <nav className="palette-pages" aria-label="Kinds">
-              {PAGES.map((p) => (
+              {PAGES.filter((p) => all.some((d) => p.categories.includes(d.category))).map((p) => (
                 <button key={p.id} className={cls(page === p.id && "is-active")} onClick={() => setPage(p.id)}>
                   {p.label}
                 </button>

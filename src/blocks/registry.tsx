@@ -18,6 +18,7 @@ import { searchDefinitions } from "./search";
 import { businessDefinitions } from "./business";
 import { languageDefinitions } from "./languages";
 import { socialDefinitions } from "./social";
+import { extensions } from "../model/extras";
 
 export type { BlockCategory, BlockDefinition, BlockMeta, InlineEditTarget } from "./types";
 
@@ -539,11 +540,11 @@ const definitions: BlockDefinition[] = [
   }
 ];
 
-definitions.push(...interactiveDefinitions, ...contentDefinitions, ...codeDefinitions, ...vectorDefinitions, ...mediaDefinitions, ...motionDefinitions, ...blogDefinitions, ...contactDefinitions, ...searchDefinitions, ...businessDefinitions, ...languageDefinitions, ...socialDefinitions, ...collectionDefinitions, ...servicesDefinitions, ...componentDefinitions);
+definitions.push(...interactiveDefinitions, ...contentDefinitions, ...codeDefinitions, ...vectorDefinitions, ...mediaDefinitions, ...motionDefinitions, ...blogDefinitions, ...contactDefinitions, ...searchDefinitions, ...businessDefinitions, ...languageDefinitions, ...socialDefinitions, ...collectionDefinitions, ...servicesDefinitions, ...componentDefinitions, ...extensions.flatMap((e) => e.blocks ?? []));
 
 const byType = new Map(definitions.map((d) => [d.type, d]));
 
-export const BLOCK_CATEGORIES: BlockCategory[] = ["Text", "Media", "Interactive", "Content", "Layout", "Actions", "Social", "Services", "Navigation"];
+export const BLOCK_CATEGORIES: BlockCategory[] = ["Text", "Media", "Interactive", "Content", "Layout", "Actions", "Social", "Services", "Navigation", "Toybox"];
 
 export function getBlockDefinition(type: string): BlockDefinition | undefined {
   return byType.get(type);

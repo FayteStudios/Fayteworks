@@ -7,7 +7,7 @@ import { themeVars } from "../model/theme";
 import { initSite } from "../site/runtime";
 import { PageRenderer } from "../site/SiteRenderer";
 import { TIER_LABEL } from "../model/responsive";
-import { cardLayouts } from "../model/extras";
+import { cardLayouts, extensions } from "../model/extras";
 import { isCardShell, SHELL_OPTIONS, shellOf } from "../model/shells";
 import { flushSync } from "react-dom";
 import { editorTier, useEditor } from "../state/store";
@@ -216,7 +216,10 @@ export function Canvas() {
     if (editing || !siteRootRef.current) return;
     const stop = initSite(siteRootRef.current);
     const stopCards = cardLayouts?.runtime(siteRootRef.current);
+    const root = siteRootRef.current;
+    const stopExtras = extensions.map((e) => e.runtime?.(root));
     return () => {
+      stopExtras.forEach((fn) => fn?.());
       stopCards?.();
       stop();
     };
