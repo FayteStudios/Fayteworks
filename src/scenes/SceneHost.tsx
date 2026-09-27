@@ -3,6 +3,7 @@ import { Icon } from "../editor/icons";
 import { useEditor } from "../state/store";
 import { cls } from "../util/cls";
 import { PageScene } from "./PageScene";
+import { SiteScene } from "./SiteScene";
 import type { LookTab, Scene } from "./scenes";
 
 const LOOK_TABS: { id: LookTab; label: string }[] = [
@@ -58,7 +59,15 @@ export function SceneHost({ scene, setScene, children }: { scene: Scene; setScen
           Done
         </button>
       </header>
-      <div className="scene-body">{scene.kind === "page" ? <PageScene pageId={scene.pageId} /> : children}</div>
+      <div className="scene-body">
+        {scene.kind === "page" ? (
+          <PageScene pageId={scene.pageId} />
+        ) : scene.kind === "site" ? (
+          <SiteScene tab={scene.tab} setTab={(tab) => setScene({ kind: "site", tab })} />
+        ) : (
+          children
+        )}
+      </div>
     </div>
   );
 }
