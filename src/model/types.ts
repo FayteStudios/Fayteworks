@@ -27,6 +27,7 @@ export interface Block {
   locked?: boolean;
   valign?: "middle" | "bottom";
   overhang?: { top?: number; bottom?: number };
+  spot?: string;
   props: BlockProps;
 }
 
@@ -213,6 +214,14 @@ export interface Site {
   fonts?: CustomFont[];
   styles?: StyleSet[];
   extras?: Record<string, unknown>;
+  companions?: Companion[];
+}
+
+export interface Companion {
+  id: string;
+  type: string;
+  props: BlockProps;
+  pages?: string[];
 }
 
 export interface StyleSet {

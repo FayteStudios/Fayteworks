@@ -45,6 +45,7 @@ export function siteBlockTypes(site: Site): Set<string> {
   const types = new Set<string>();
   const sections = [site.header, site.footer, ...site.pages.flatMap((p) => p.sections), ...(site.components ?? []).flatMap((c) => [c.section, ...(c.variants ?? []).map((v) => v.section)])];
   for (const s of sections) for (const b of s?.blocks ?? []) types.add(b.type);
+  for (const c of site.companions ?? []) types.add(c.type);
   return types;
 }
 

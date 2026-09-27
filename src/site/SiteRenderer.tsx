@@ -174,6 +174,7 @@ export function StaticSection({ section, role }: { section: Section; role: Secti
             style={{ ...blockStyle(section, block, z), ...motion.style } as CSSProperties}
             data-mobile-height={mobileHeightOf(block)}
             data-grow={getBlockDefinition(block.type)?.grows ? "" : undefined}
+            data-spot={block.spot || undefined}
             {...hideAttrs(block)}
             {...motion.attrs}
           >
@@ -203,6 +204,14 @@ export function PageRenderer({ site, page }: { site: Site; page: Page }) {
       {footer.map(({ section, role }) => (
         <StaticSection key={section.id} section={section} role={role} />
       ))}
+      {!page.design &&
+        (site.companions ?? [])
+          .filter((c) => !c.pages || c.pages.includes(page.id))
+          .map((c) => (
+            <div key={c.id} className="site-companion" data-companion={c.type}>
+              <BlockContent block={{ id: c.id, type: c.type, x: 0, y: 0, w: 1, h: 1, props: c.props }} />
+            </div>
+          ))}
     </>
   );
 }

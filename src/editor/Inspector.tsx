@@ -38,7 +38,7 @@ import { openFramesFor, openTimelineFor } from "./focusTools";
 import { SoundTools } from "../motion/SoundTools";
 import { CollectionTools, ItemPageSetting } from "../data/CollectionTools";
 import { isCardShell, SHELL_OPTIONS, shellFields, shellOf } from "../model/shells";
-import { cardLayouts } from "../model/extras";
+import { cardLayouts, extensions } from "../model/extras";
 import type { PageShell } from "../model/types";
 import { Badge, BADGES, Hint } from "./Hint";
 import { Icon } from "./icons";
@@ -121,6 +121,33 @@ const layoutFields = (cols: number): FieldDef[] => [
   { key: "y", label: "Row", kind: "number", min: 1 },
   { key: "h", label: "Height", kind: "number", min: 1 }
 ];
+
+const hasCompanions = extensions.some((e) => e.blocks?.some((b) => b.placement === "companion"));
+
+function SpotField({ block, mutate }: { block: Block; mutate: (recipe: (b: Block) => void, key?: string) => void }) {
+  return (
+    <section className="inspector-group">
+      <label className="field">
+        <span className="field-label field-label--row">
+          <span>Spot name</span>
+          <Hint align="end">Companions like Dot can sit here. Give it a short name, like shelf or contact.</Hint>
+        </span>
+        <input
+          type="text"
+          value={block.spot ?? ""}
+          placeholder="none"
+          onChange={(e) =>
+            mutate((b) => {
+              const v = e.target.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+              if (v) b.spot = v;
+              else delete b.spot;
+            }, "spot")
+          }
+        />
+      </label>
+    </section>
+  );
+}
 
 function FlipbookEntry({ section, block }: { section: Section; block: Block }) {
   const frames = Array.isArray(block.props.frames) ? block.props.frames.length : 0;
@@ -416,6 +443,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
         {block.type === "collection" && !design && <CollectionTools block={block} mutate={mutateBlock} />}
         {block.type === "vector" && <VectorTools block={block} mutate={mutateBlock} />}
         {def?.Tools && <def.Tools block={block} section={section} mutate={mutateBlock} />}
+        {hasCompanions && <SpotField block={block} mutate={mutateBlock} />}
         {block.type === "flipbook" && <FlipbookEntry section={section} block={block} />}
         {(block.type === "video" || block.type === "audio") && <MediaTools block={block} mutate={mutateBlock} />}
         <div className="focus-extras">
@@ -536,6 +564,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
       )}
       {block.type === "vector" && <VectorTools block={block} mutate={mutateBlock} />}
       {def?.Tools && <def.Tools block={block} section={section} mutate={mutateBlock} />}
+      {hasCompanions && <SpotField block={block} mutate={mutateBlock} />}
       {block.type === "flipbook" && <FlipbookEntry section={section} block={block} />}
       {(block.type === "video" || block.type === "audio") && <MediaTools block={block} mutate={mutateBlock} />}
       {block.type === "code" && /^https?:\/\//.test(String(block.props.source ?? "")) && <ViewOriginal url={String(block.props.source)} />}

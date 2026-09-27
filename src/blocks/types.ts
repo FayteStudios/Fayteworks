@@ -26,6 +26,7 @@ export interface BlockDefinition {
   /** Short facts shown as badges in the inspector (see editor/Hint.tsx). */
   badges?: ("free" | "noServer" | "account" | "markdown" | "grows" | "github" | "desktop")[];
   inlineEdit?: InlineEditTarget[];
+  placement?: "companion";
   Tools?: ComponentType<{ block: Block; section: Section; mutate: (recipe: (b: Block) => void, key?: string) => void }>;
 }
 

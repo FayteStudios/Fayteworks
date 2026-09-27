@@ -1,3 +1,6 @@
+import { listBlockDefinitions } from "../blocks/registry";
+import type { Block, Companion, Section } from "../model/types";
+import { createId } from "../util/id";
 import { useState } from "react";
 import { HandoverDialog } from "../client/ClientInspector";
 import { FieldList } from "../editor/Fields";
@@ -14,8 +17,85 @@ const TABS: { id: SiteTab; label: string }[] = [
   { id: "site", label: "The site" },
   { id: "connections", label: "Connections" },
   { id: "languages", label: "Languages" },
-  { id: "client", label: "Handing it to a client" }
+  { id: "client", label: "Handing it to a client" },
+  { id: "companions", label: "Companions" }
 ];
+
+const companionTypes = () => listBlockDefinitions().filter((d) => d.placement === "companion");
+
+function CompanionsTab() {
+  const { state, commit } = useEditor();
+  const types = companionTypes();
+  const companions = state.site.companions ?? [];
+  const pages = state.site.pages.filter((p) => !p.design);
+  const edit = (id: string, recipe: (c: Companion) => void, key?: string) =>
+    commit((d) => {
+      const c = d.companions?.find((x) => x.id === id);
+      if (c) recipe(c);
+    }, key && `companion.${id}.${key}`);
+  return (
+    <>
+      <section className="scene-card scene-card--wide">
+        <h3>Companions</h3>
+        <p className="scene-note">Characters and helpers that live on every page, or the pages you pick. They show in Preview and on the published site. To give them places to sit, name a piece's spot in its settings.</p>
+        <div className="companion-add">
+          {types.map((t) => (
+            <button
+              key={t.type}
+              className="btn"
+              onClick={() => commit((d) => void (d.companions ??= []).push({ id: createId("cmp"), type: t.type, props: structuredClone(t.defaultProps) }))}
+            >
+              {t.icon} Add {t.label.toLowerCase()}
+            </button>
+          ))}
+        </div>
+      </section>
+      {companions.map((c) => {
+        const def = types.find((t) => t.type === c.type);
+        if (!def) return null;
+        const fields = [...(def.extraFields?.(c.props, state.site) ?? []), ...def.fields];
+        const pseudo: Block = { id: c.id, type: c.type, x: 0, y: 0, w: 1, h: 1, props: c.props };
+        return (
+          <section key={c.id} className="scene-card scene-card--wide">
+            <div className="scene-card-head">
+              <h3>
+                {def.icon} {String(c.props.name || def.label)}
+              </h3>
+              <button className="btn btn--danger btn--small" onClick={() => commit((d) => void (d.companions = d.companions?.filter((x) => x.id !== c.id)))}>
+                Remove
+              </button>
+            </div>
+            <div className="companion-pages">
+              <label className="scene-check">
+                <input type="radio" name={`pages-${c.id}`} checked={!c.pages} onChange={() => edit(c.id, (x) => void delete x.pages)} /> On every page
+              </label>
+              <label className="scene-check">
+                <input type="radio" name={`pages-${c.id}`} checked={Boolean(c.pages)} onChange={() => edit(c.id, (x) => void (x.pages = [pages[0].id]))} /> Only on…
+              </label>
+              {c.pages &&
+                pages.map((p) => (
+                  <label key={p.id} className="scene-check companion-page">
+                    <input
+                      type="checkbox"
+                      checked={c.pages!.includes(p.id)}
+                      onChange={(e) => edit(c.id, (x) => void (x.pages = e.target.checked ? [...(x.pages ?? []), p.id] : (x.pages ?? []).filter((id) => id !== p.id)))}
+                    />
+                    {p.title}
+                  </label>
+                ))}
+            </div>
+            {def.Tools && <def.Tools block={pseudo} section={{ id: "companions", name: "", blocks: [] } as unknown as Section} mutate={(recipe, key) => edit(c.id, (x) => {
+              const b: Block = { ...pseudo, props: x.props };
+              recipe(b);
+              x.props = b.props;
+            }, key)} />}
+            <FieldList fields={fields} values={c.props} onChange={(key, value) => edit(c.id, (x) => void (x.props[key] = value), key)} />
+          </section>
+        );
+      })}
+    </>
+  );
+}
 
 const TAB_ICON: FieldDef[] = [{ key: "favicon", label: "Tab icon", kind: "image", hint: "A square PNG or SVG. It shows in browser tabs and bookmarks." }];
 
@@ -38,7 +118,7 @@ export function SiteScene({ tab, setTab }: { tab: SiteTab; setTab: (tab: SiteTab
   return (
     <div className="scene-nav-layout">
       <nav className="scene-nav" aria-label="Site settings">
-        {TABS.map((t) => (
+        {TABS.filter((t) => t.id !== "companions" || companionTypes().length > 0).map((t) => (
           <button key={t.id} className={cls(tab === t.id && "is-active")} aria-current={tab === t.id ? "page" : undefined} onClick={() => setTab(t.id)}>
             {t.label}
           </button>
@@ -142,6 +222,7 @@ export function SiteScene({ tab, setTab }: { tab: SiteTab; setTab: (tab: SiteTab
           </section>
         )}
 
+        {tab === "companions" && <CompanionsTab />}
         {tab === "client" && (
           <section className="scene-card scene-card--wide">
             <h3>Handing it to a client</h3>
