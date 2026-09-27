@@ -36,6 +36,7 @@ import { DataPanel } from "../data/DataPanel";
 import { TimelinePanel } from "../motion/TimelinePanel";
 import { ServicesDialog } from "../services/ServicesDialog";
 import { ExportDialog } from "./ExportDialog";
+import { DotHelper } from "../helper/DotHelper";
 import { IssuesProvider, useIssues } from "./issues";
 import { EditorRenderProvider } from "./renderProvider";
 import { Inspector } from "./Inspector";
@@ -615,6 +616,7 @@ function Rail({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
         </button>
       ))}
       <span className="rail-spacer" />
+      <div className="rail-dot-slot" />
       {desktop && (
         <>
           <button className="rail-item" onClick={() => window.dispatchEvent(new Event(OPEN_INBOX))}>
@@ -805,6 +807,7 @@ export function EditorShell() {
         <Workspace />
         <AskTextHost />
         <GuideHost />
+        <DotHelper />
         <VersionKeeper />
         <TailwindSync />
         <VectorSync />

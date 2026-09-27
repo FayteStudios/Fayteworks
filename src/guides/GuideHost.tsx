@@ -1,3 +1,4 @@
+import { dotHidden, setDotHidden } from "../helper/DotHelper";
 import { useEffect, useRef, useState } from "react";
 import { openPanel } from "../editor/workspace";
 import { TokenField } from "../editor/ExportDialog";
@@ -38,6 +39,11 @@ function GuideDialog({ guideId, onClose, onOpen }: { guideId: string; onClose: (
       <header className="dialog-header">
         <h2>{guide ? guide.title : "Guides"}</h2>
         <div className="guide-header-actions">
+          {dotHidden() && (
+            <button className="btn btn--ghost" onClick={() => setDotHidden(false)}>
+              Bring Dot back
+            </button>
+          )}
           {guide && (
             <button className="btn btn--ghost" onClick={() => onOpen("")}>
               All guides

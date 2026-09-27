@@ -5126,3 +5126,21 @@ body.is-resizing-dock-y, body.is-resizing-dock-y * { cursor: row-resize !importa
 .sprites-delete { align-self: flex-start; color: var(--ui-muted); }
 .fw-sprite { display: block; background-repeat: no-repeat; }
 @media (max-width: 1200px) { .sprites-layout { grid-template-columns: 240px minmax(0, 1fr); } .sprites-states { grid-column: 2; } }
+
+.dot-helper { position: relative; z-index: 900; flex: none; width: 44px; height: 44px; margin: 0 auto 12px; }
+.dot-helper.is-floating { position: fixed; left: 16px; bottom: 16px; margin: 0; }
+.rail-dot-slot { display: flex; justify-content: center; }
+.dot-helper-body { position: relative; display: flex; align-items: center; justify-content: center; gap: 16%; width: 44px; height: 42px; padding: 0 0 4px; border: 0; border-radius: 50% 50% 44% 44%; background: radial-gradient(circle at 34% 28%, #ff9a9d, #e5484d 58%, #b8383c); box-shadow: inset 0 -5px 8px rgb(0 0 0 / 0.18), 0 6px 14px rgb(0 0 0 / 0.35); cursor: pointer; transform-origin: 50% 100%; animation: dot-breathe 3.2s ease-in-out infinite; }
+.dot-helper-body:focus-visible { outline: 3px solid var(--ui-accent); outline-offset: 3px; }
+.dot-helper-eye { width: 12%; height: 22%; border-radius: 50%; background: #1b1b1f; animation: dot-blink 4.6s infinite; }
+.dot-helper.is-hop .dot-helper-body { animation: dot-hop 0.4s ease-out 2; }
+.dot-helper.is-talk .dot-helper-body { animation: dot-bounce 0.9s ease-in-out infinite; }
+.dot-helper-hide { position: absolute; top: -8px; right: -10px; width: 20px; height: 20px; padding: 0; border: 1px solid var(--ui-border); border-radius: 50%; background: var(--ui-panel); color: var(--ui-muted); font-size: 12px; line-height: 1; opacity: 0; cursor: pointer; transition: opacity 0.15s; }
+.dot-helper:hover .dot-helper-hide, .dot-helper-hide:focus-visible { opacity: 1; }
+.dot-helper-say { position: fixed; z-index: 1000; width: max-content; max-width: 280px; margin: 0; padding: 10px 14px; border-radius: 14px 14px 14px 4px; background: #fffaf0; color: #2b2118; font-size: 13px; line-height: 1.45; box-shadow: 0 10px 24px rgb(0 0 0 / 0.35); animation: dot-pop 0.2s ease-out; }
+@keyframes dot-breathe { 50% { transform: scale(1.04, 0.96); } }
+@keyframes dot-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+@keyframes dot-hop { 50% { transform: translateY(-8px); } }
+@keyframes dot-bounce { 50% { transform: translateY(-3px) scale(1.02, 0.98); } }
+@keyframes dot-pop { from { opacity: 0; transform: translateY(6px) scale(0.96); } }
+@media (prefers-reduced-motion: reduce) { .dot-helper * { animation: none !important; } }
