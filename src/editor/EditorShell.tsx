@@ -8,7 +8,6 @@ import { StatsDialog } from "../stats/StatsDialog";
 import { DirectoryDialog, OPEN_DIRECTORY } from "../directory/DirectoryDialog";
 import { OPEN_TELL, TellPeopleDialog } from "../social/TellPeopleDialog";
 import { EmailSignatureDialog } from "../social/EmailSignatureDialog";
-import { AltTextDialog, OPEN_ALT } from "../quality/AltTextDialog";
 import { HistoryDialog, VersionKeeper } from "../history/HistoryDialog";
 import { isClientLocked, useClientLock } from "../client/clientMode";
 import { ClientBadge, ClientInspector, ClientLockedPanel, HandoverDialog } from "../client/ClientInspector";
@@ -352,7 +351,6 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
   const [checking, setChecking] = useState(false);
   const [handover, setHandover] = useState(false);
   const [history, setHistory] = useState(false);
-  const [altFocus, setAltFocus] = useState<string | null>(null);
   const [documentKind, setDocumentKind] = useState<"invoice" | "proposal" | null>(null);
   const [translating, setTranslating] = useState(false);
   const [directory, setDirectory] = useState<{ category?: string } | null>(null);
@@ -375,11 +373,6 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
     const open = (e: Event) => setDirectory({ category: (e as CustomEvent<string | undefined>).detail });
     window.addEventListener(OPEN_DIRECTORY, open);
     return () => window.removeEventListener(OPEN_DIRECTORY, open);
-  }, []);
-  useEffect(() => {
-    const open = (e: Event) => setAltFocus((e as CustomEvent<string>).detail ?? "");
-    window.addEventListener(OPEN_ALT, open);
-    return () => window.removeEventListener(OPEN_ALT, open);
   }, []);
   useEffect(() => {
     const open = () => setChecking(true);
@@ -553,7 +546,6 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
       {checking && <PrepublishDialog onClose={() => setChecking(false)} />}
       {handover && <HandoverDialog onClose={() => setHandover(false)} />}
       {history && <HistoryDialog onClose={() => setHistory(false)} />}
-      {altFocus !== null && <AltTextDialog focus={altFocus} onClose={() => setAltFocus(null)} />}
       {documentKind && <DocumentDialog kind={documentKind} onClose={() => setDocumentKind(null)} />}
       {translating && <TranslateDialog onClose={() => setTranslating(false)} />}
       {directory && <DirectoryDialog category={directory.category} onClose={() => setDirectory(null)} />}
