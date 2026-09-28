@@ -4,8 +4,11 @@ import { TRACE_MAX_SIDE, traceImageData, type TraceOptions } from "./trace";
 import { exportEffects, hasEffects, effectsReach, installEffects, type Effects } from "./effects";
 import { layoutEnds, type Ends } from "./ends";
 import { outlineText } from "./outlines";
+import { exportPaint, importPaint, installPaint, onTileReady, type PaintExport, type PatternFill, type StrokeAlign } from "./paint";
+import { mapPath, perspectiveMap, prepareForBend, puckerBloat, roughen, twistMap, warpMap, zigzag, type EffectKind, type EffectParams } from "./pathEffects";
+import { layoutBlend, layoutRepeat, layoutSymbols, type Blend, type Repeat } from "./live";
 
-export type Tool = "select" | "direct" | "pen" | "curvature" | "pencil" | "scissors" | "knife" | "eraser" | "rect" | "ellipse" | "polygon" | "star" | "shape" | "line" | "arc" | "spiral" | "text" | "eyedropper" | "gradient" | "hand";
+export type Tool = "select" | "direct" | "pen" | "curvature" | "pencil" | "scissors" | "knife" | "eraser" | "rect" | "ellipse" | "polygon" | "star" | "shape" | "line" | "arc" | "spiral" | "text" | "eyedropper" | "gradient" | "blob" | "calligraphy" | "distort" | "hand";
 export type BooleanOp = "unite" | "subtract" | "intersect" | "exclude";
 export type AlignOp = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
 export type ShapeKind = "triangle" | "arrow" | "bubble" | "heart" | "cloud" | "gear" | "donut" | "pie";
@@ -48,7 +51,8 @@ export interface GradientStop {
 }
 
 export interface Fill {
-  kind: "none" | "solid" | "linear" | "radial";
+  kind: "none" | "solid" | "linear" | "radial" | "pattern";
+  pattern?: Omit<PatternFill, "color">;
   color: string;
   color2: string;
   angle: number;
@@ -83,6 +87,7 @@ export interface StyleInfo {
   fillRule: "nonzero" | "evenodd";
   opacity: number;
   blendMode: BlendMode;
+  strokeAlign: StrokeAlign;
 }
 
 export interface TextInfo {
@@ -93,6 +98,7 @@ export interface TextInfo {
   justification: "left" | "center" | "right";
   lineHeight: number;
   spacing: number;
+  wrap: number;
 }
 
 export interface TextPathInfo {
@@ -194,6 +200,7 @@ function prepareForImport(svg: string, box: { x: number; y: number; w: number; h
     if (id && label && label !== id.replace(/_/g, " ")) preserved.labels.set(id, label);
     if (id && el.localName === "g" && (el.getAttributeNS(INKSCAPE_NS, "groupmode") ?? el.getAttribute("inkscape:groupmode")) === "layer") preserved.layerIds.add(id);
   }
+  importPaint(root);
   convertTextPaths(root);
   convertTextLines(root);
   return { svg: new XMLSerializer().serializeToString(root), preserved };
@@ -433,8 +440,14 @@ export class DrawingEngine {
     snapPoints: true,
     angleStep: 45,
     rulers: false,
-    eraser: 12
+    eraser: 12,
+    blob: 16,
+    nib: 10,
+    nibAngle: 35,
+    mirror: "off" as "off" | "v" | "h" | "both"
   };
+  tile: { tile: string; tileW: number; tileH: number } | null = null;
+  private stopTiles: () => void = () => undefined;
   guides: Guides = { x: [], y: [] };
   defaults: { fill: string | null; stroke: string | null; strokeWidth: number } = { fill: "#d9d4cc", stroke: null, strokeWidth: 2 };
   lineDefaults: { stroke: string; strokeWidth: number } = { stroke: "#1d1b18", strokeWidth: 2 };
@@ -484,6 +497,12 @@ export class DrawingEngine {
     this.ui = new this.scope.Layer();
     patchTextSpacing(this.scope);
     installEffects(this.scope);
+    installPaint(this.scope);
+    this.stopTiles = onTileReady(() => {
+      const view = this.scope.view as unknown as { _needsUpdate: boolean; update(): void };
+      view._needsUpdate = true;
+      view.update();
+    });
     this.box = viewBoxOf(svg);
     this.guides = guidesOf(svg);
     this.load(svg);
@@ -497,6 +516,7 @@ export class DrawingEngine {
 
   destroy() {
     this.destroyed = true;
+    this.stopTiles();
     this.canvas.removeEventListener("dblclick", this.onDoubleClick);
     this.scope.tool?.remove();
     this.scope.project?.remove();
@@ -513,7 +533,7 @@ export class DrawingEngine {
     }
     if (!imported) return;
     let kids = imported.children ? [...imported.children].filter((k) => !k.clipMask) : [imported];
-    while (kids.length === 1 && kids[0] instanceof this.scope.Group && !kids[0].name && !kids[0].clipped && !kids[0].data?.textPath) kids = [...kids[0].children];
+    while (kids.length === 1 && kids[0] instanceof this.scope.Group && !kids[0].name && !kids[0].clipped && !Object.keys(kids[0].data ?? {}).length) kids = [...kids[0].children];
     for (const kid of kids) {
       if (kid.clipMask) {
         kid.remove();
@@ -523,6 +543,11 @@ export class DrawingEngine {
     }
     for (const group of this.textPathGroups()) this.layoutTextPath(group);
     for (const group of this.endsGroups()) layoutEnds(this.scope, group);
+    for (const item of this.art.getItems({ recursive: true, match: (i: paper.Item) => Boolean(i.data?.maskSource || i.data?.paint) })) {
+      if (item.data.maskSource) item.visible = true;
+      delete item.data.paint;
+    }
+    this.layoutLive();
     for (const text of this.art.getItems({ recursive: true, class: this.scope.PointText }) as paper.PointText[]) {
       if (text.data.leading) text.leading = text.data.leading;
       delete text.data.leading;
@@ -554,6 +579,22 @@ export class DrawingEngine {
     this.restoreDim();
     const texts = this.art.getItems({ recursive: true, class: this.scope.PointText, match: (t: paper.PointText) => t.content.includes("\n") }) as paper.PointText[];
     for (const t of texts) t.data.leading = Math.round(Number(t.leading) * 100) / 100;
+    const painted = this.art.getItems({ recursive: true, match: (i: paper.Item) => i instanceof this.scope.PathItem && Boolean((i.data?.strokeAlign && i.data.strokeAlign !== "center") || i.data?.pattern) }) as paper.PathItem[];
+    for (const p of painted) {
+      const stroke = p.strokeColor;
+      const paint: PaintExport = {
+        stroke: stroke && !stroke.gradient ? (stroke.convert("rgb") as paper.Color).toCSS(true) : stroke ? toHex(stroke) : null,
+        strokeOpacity: stroke?.alpha ?? 1,
+        width: p.strokeWidth,
+        cap: p.strokeCap,
+        join: p.strokeJoin,
+        miter: p.miterLimit,
+        dash: [...(p.dashArray ?? [])],
+        dashOffset: p.dashOffset ?? 0,
+        rule: p.fillRule || "nonzero"
+      };
+      p.data.paint = paint;
+    }
     const ns = "http://www.w3.org/2000/svg";
     const doc = document.implementation.createDocument(ns, "svg", null);
     const root = doc.documentElement;
@@ -563,10 +604,12 @@ export class DrawingEngine {
     root.setAttribute("height", String(h));
     const layer = this.art.exportSVG({ asString: false, precision: 2 }) as SVGElement;
     for (const t of texts) delete t.data.leading;
+    for (const p of painted) delete p.data.paint;
     if (this.art.getItems({ recursive: true, match: (i: paper.Item) => Boolean(i.strokeColor) && i.strokeJoin === "miter" }).length) root.setAttribute("stroke-miterlimit", "10");
     for (const child of Array.from(layer.childNodes)) root.appendChild(doc.importNode(child, true));
     this.exportTextLines(doc, root);
     this.exportTextPaths(doc, root);
+    exportPaint(doc, root);
     exportEffects(doc, root);
     if (this.guides.x.length || this.guides.y.length) root.setAttribute("data-fw-guides", JSON.stringify(this.guides));
     this.restorePreserved(doc, root);
@@ -615,7 +658,10 @@ export class DrawingEngine {
   commit(key = "", label?: string) {
     for (const group of this.textPathGroups()) this.layoutTextPath(group);
     for (const group of this.endsGroups()) layoutEnds(this.scope, group);
+    this.layoutLive();
     if (key !== "simplify") this.simplifyBase = null;
+    if (!key.startsWith("fx-")) this.effectBase = null;
+    if (key !== "distort") this.distortState = null;
     this.colorCache = null;
     const now = Date.now();
     const snap = this.snapshot();
@@ -644,6 +690,8 @@ export class DrawingEngine {
     this.curve = null;
     this.key = null;
     this.simplifyBase = null;
+    this.effectBase = null;
+    this.distortState = null;
     this.colorCache = null;
     this.refresh();
   }
@@ -915,6 +963,14 @@ export class DrawingEngine {
     this.ui.activate();
     if (this.tempStroke) this.ui.addChild(this.tempStroke);
     if (this.tool === "gradient") this.drawGradientHandles(z);
+    if (this.tool === "distort") this.drawDistortHandles(z);
+    if (this.options.mirror !== "off") {
+      const b = this.board.bounds;
+      const vb = this.scope.view.bounds;
+      const axis = { strokeColor: new this.scope.Color(0.55, 0.36, 0.96, 0.8), strokeWidth: 1 / z, dashArray: [6 / z, 4 / z] };
+      if (this.options.mirror !== "h") new this.scope.Path.Line({ from: [b.center.x, vb.top], to: [b.center.x, vb.bottom], ...axis });
+      if (this.options.mirror !== "v") new this.scope.Path.Line({ from: [vb.left, b.center.y], to: [vb.right, b.center.y], ...axis });
+    }
     this.drawSnapLines(z);
     if (this.options.rulers) this.drawRulers(z);
     this.art.activate();
@@ -958,6 +1014,9 @@ export class DrawingEngine {
       item.blendMode = "normal";
       item.shadowColor = null;
       if (item.data?.effects) delete item.data.effects;
+      delete item.data?.pattern;
+      delete item.data?.strokeAlign;
+      delete item.data?.softMask;
       if (item instanceof this.scope.Group && item.clipped) item.clipped = false;
       if (item.clipMask) item.clipMask = false;
       if (item instanceof this.scope.Raster) {
@@ -1170,7 +1229,7 @@ export class DrawingEngine {
   private setupTool() {
     const tool = new this.scope.Tool();
     tool.minDistance = 0;
-    let mode: "none" | "move" | "scale" | "rotate" | "marquee" | "pan" | "shape" | "node" | "handle" | "bend" | "pencil" | "pen-drag" | "guide" | "knife" | "gradient" = "none";
+    let mode: "none" | "move" | "scale" | "rotate" | "marquee" | "pan" | "shape" | "node" | "handle" | "bend" | "pencil" | "pen-drag" | "guide" | "knife" | "gradient" | "distort" = "none";
     let start: paper.Point;
     let last: paper.Point;
     let handleName = "";
@@ -1185,6 +1244,7 @@ export class DrawingEngine {
     let keyCandidate: paper.Item | null = null;
     let guideDrag: { axis: "x" | "y"; index: number } | null = null;
     let gradDrag: string | null = null;
+    let corner = -1;
     let grabbed: { segment: paper.Segment; from: paper.Point } | null = null;
     const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
     const along = (g: { origin: paper.Point; destination: paper.Point }, point: paper.Point) => {
@@ -1195,7 +1255,7 @@ export class DrawingEngine {
     let lastClick = { at: 0, point: new this.scope.Point(0, 0) };
 
     const hitOptions = (extra: object = {}) => ({ fill: true, stroke: true, segments: true, tolerance: 5 / this.scope.view.zoom, ...extra });
-    const inScopeHit = (h: paper.HitResult) => this.shown(h.item) && this.inScope(h.item);
+    const inScopeHit = (h: paper.HitResult) => this.shown(h.item) && this.inScope(h.item) && (this.tool !== "direct" || !this.isGen(h.item));
     const isSmooth = (s: paper.Segment) => !s.handleIn.isZero() && !s.handleOut.isZero() && Math.abs(Math.abs(s.handleIn.getDirectedAngle(s.handleOut)) - 180) < 3;
 
     tool.onMouseDown = (e: paper.ToolEvent) => {
@@ -1368,6 +1428,36 @@ export class DrawingEngine {
             if (!mods(e).shift) this.select([]);
             mode = "marquee";
           }
+          return;
+        }
+        case "distort": {
+          const uiHit = this.ui.hitTest(e.point, { fill: true, stroke: true, tolerance: 4 / z });
+          const handle = uiHit?.item.data.handle as string | undefined;
+          if (handle?.startsWith("d-") && this.selection.length) {
+            corner = Number(handle.slice(2));
+            this.startDistort();
+            mode = "distort";
+            return;
+          }
+          const hit = this.art.hitTest(e.point, hitOptions({ match: inScopeHit }));
+          this.select(hit ? [this.topLevel(hit.item)] : []);
+          mode = "none";
+          return;
+        }
+        case "blob":
+        case "calligraphy": {
+          const blob = this.tool === "blob";
+          this.tempStroke = new this.scope.Path({
+            segments: [e.point],
+            strokeColor: new this.scope.Color(blob ? (this.defaults.fill ?? this.lineDefaults.stroke) : this.lineDefaults.stroke),
+            strokeWidth: blob ? this.options.blob : Math.max(1, this.options.nib * 0.4),
+            opacity: 0.6,
+            strokeCap: "round",
+            strokeJoin: "round",
+            insert: false
+          });
+          mode = "knife";
+          this.refresh(true);
           return;
         }
         case "knife":
@@ -1580,6 +1670,19 @@ export class DrawingEngine {
         this.refresh(true);
         return;
       }
+      if (mode === "distort" && this.distortState && corner >= 0) {
+        const quad = this.distortState.quad;
+        const to = this.snap(e.point);
+        const before = quad[corner];
+        quad[corner] = [to.x, to.y];
+        if (mods(e).shift) {
+          const pair = corner ^ 1;
+          quad[pair] = [quad[pair][0] - (to.x - before[0]), quad[pair][1] + (to.y - before[1])];
+        }
+        this.applyDistort();
+        this.refresh();
+        return;
+      }
       if (mode === "gradient" && gradDrag) {
         const target = this.gradientTarget();
         if (!target) return;
@@ -1712,9 +1815,16 @@ export class DrawingEngine {
         this.tempStroke = null;
         if (stroke) {
           if (this.tool === "knife") this.knife(stroke);
-          else this.erase(stroke);
+          else if (this.tool === "eraser") this.erase(stroke);
+          else if (this.tool === "blob") this.blobPaint(stroke);
+          else this.calligraphy(stroke);
         }
         this.refresh();
+        return;
+      }
+      if (finished === "distort") {
+        corner = -1;
+        if (changed) this.commit("distort", "Distort");
         return;
       }
       if (finished === "gradient") {
@@ -1747,7 +1857,7 @@ export class DrawingEngine {
         else {
           path.simplify(2.5);
           this.adopt(path);
-          this.select([path]);
+          this.select([this.mirrorWrap(path)]);
           this.commit("", "Draw");
         }
         shape = null;
@@ -1756,7 +1866,7 @@ export class DrawingEngine {
       if (finished === "shape") {
         if (shape && (shape.bounds.width > 1 || shape.bounds.height > 1)) {
           this.adopt(shape);
-          this.select([shape]);
+          this.select([this.mirrorWrap(shape)]);
           this.commit("", "Draw shape");
           this.setTool("select");
         } else shape?.remove();
@@ -1994,7 +2104,7 @@ export class DrawingEngine {
       this.refresh();
       return;
     }
-    this.select([path]);
+    this.select([this.mirrorWrap(path)]);
     this.commit("", "Draw path");
   }
 
@@ -2010,7 +2120,8 @@ export class DrawingEngine {
     if (!content.trim()) {
       item.remove();
       this.selection = this.selection.filter((i) => i !== item);
-    } else item.content = content;
+    } else if (item.data.wrap) item.data.raw = content;
+    else item.content = content;
     this.commit("", "Edit text");
   }
 
@@ -2286,6 +2397,7 @@ export class DrawingEngine {
   selectedPaths(): paper.Path[] {
     const out = new Set<paper.Path>();
     const walk = (item: paper.Item) => {
+      if (item.data?.gen || item.data?.head) return;
       if (item instanceof this.scope.Path) out.add(item);
       else if (item.children && !(item instanceof this.scope.PointText)) for (const kid of item.children) walk(kid);
     };
@@ -2605,6 +2717,11 @@ export class DrawingEngine {
 
   private fillOf(item: paper.Item): Fill {
     const fillColor = item.fillColor;
+    const pattern = item.data?.pattern as PatternFill | undefined;
+    if (pattern) {
+      const { color, ...rest } = pattern;
+      return { kind: "pattern", color, color2: toHex(fillColor) ?? "#ffffff", angle: pattern.angle, pattern: rest };
+    }
     if (fillColor?.gradient) {
       const { origin, destination } = fillColor as unknown as { origin: paper.Point; destination: paper.Point };
       const raw = fillColor.gradient.stops;
@@ -2735,7 +2852,7 @@ export class DrawingEngine {
     const pool = this.selection.length ? this.selection : this.scopeRoot.children.filter((i) => this.shown(i));
     const out = new Set<paper.PathItem>();
     const walk = (item: paper.Item) => {
-      if (item.locked || !item.visible || item.data?.guide || item.clipMask) return;
+      if (item.locked || !item.visible || item.data?.guide || item.clipMask || item.data?.gen || item.data?.head) return;
       if (item instanceof this.scope.CompoundPath || item instanceof this.scope.Path) out.add(item);
       else if (item instanceof this.scope.Group && !item.data?.textPath) for (const kid of item.children) walk(kid);
     };
@@ -3406,6 +3523,552 @@ export class DrawingEngine {
     }
   }
 
+  private layoutLive() {
+    layoutSymbols(this.scope, this.art);
+    for (const g of this.art.getItems({ recursive: true, class: this.scope.Group, match: (i: paper.Item) => Boolean(i.data?.repeat) }) as paper.Group[]) layoutRepeat(this.scope, g);
+    for (const g of this.art.getItems({ recursive: true, class: this.scope.Group, match: (i: paper.Item) => Boolean(i.data?.blend) }) as paper.Group[]) layoutBlend(this.scope, g);
+    for (const t of this.art.getItems({ recursive: true, class: this.scope.PointText, match: (i: paper.Item) => Boolean(i.data?.wrap) }) as paper.PointText[]) this.wrapText(t);
+  }
+
+  private liveOwner(item: paper.Item | undefined): paper.Group | null {
+    for (let i: paper.Item | null | undefined = item; i && i !== this.art; i = i.parent) if (i instanceof this.scope.Group && (i.data?.repeat || i.data?.blend)) return i;
+    return null;
+  }
+
+  liveInfo(): { repeat?: Repeat; blend?: Blend; symbol?: "master" | "copy" } | null {
+    if (this.selection.length !== 1) return null;
+    const item = this.selection[0];
+    if (item.data?.repeat) return { repeat: { ...(item.data.repeat as Repeat) } };
+    if (item.data?.blend) return { blend: { ...(item.data.blend as Blend) } };
+    if (item.data?.instanceOf) return { symbol: "copy" };
+    if (item.data?.symbol) return { symbol: "master" };
+    return null;
+  }
+
+  makeRepeat(kind: Repeat["kind"]) {
+    if (this.refAdjust || !this.selection.length) return;
+    let source: paper.Item;
+    let along: paper.Path | null = null;
+    if (kind === "path") {
+      if (this.selection.length !== 2) return;
+      const sorted = [...this.selection].sort((a, b) => b.index - a.index);
+      const paths = sorted.filter((i): i is paper.Path => i instanceof this.scope.Path);
+      along = paths.find((p) => !p.closed) ?? paths[0] ?? null;
+      if (!along) return;
+      source = sorted.find((i) => i !== along)!;
+    } else if (this.selection.length === 1) source = this.selection[0];
+    else {
+      this.group();
+      source = this.selection[0];
+    }
+    const group = new this.scope.Group({ insert: false });
+    group.insertAbove(source);
+    group.name = source.name;
+    source.name = "";
+    group.addChild(source);
+    source.data.source = true;
+    if (along) {
+      group.insertChild(0, along);
+      along.data.along = true;
+    }
+    const b = source.bounds;
+    const repeat: Repeat =
+      kind === "grid"
+        ? { kind, cols: 3, rows: 2, gapX: Math.round(b.width * 0.2), gapY: Math.round(b.height * 0.2) }
+        : kind === "radial"
+          ? { kind, count: 8, radius: Math.round(Math.max(b.width, b.height) * 1.2) }
+          : kind === "mirror"
+            ? { kind, axis: "v", atX: Math.round(b.right + b.width * 0.1), atY: Math.round(b.bottom + b.height * 0.1) }
+            : { kind, count: 8, rotate: true };
+    group.data.repeat = repeat;
+    this.select([group]);
+    this.commit("", "Repeat");
+  }
+
+  setRepeat(patch: Partial<Repeat>) {
+    const group = this.selection[0];
+    if (!group?.data?.repeat) return;
+    group.data.repeat = { ...group.data.repeat, ...patch };
+    this.commit("repeat", "Repeat");
+  }
+
+  private unwrapLive(expand: boolean) {
+    const group = this.selection[0];
+    if (!(group instanceof this.scope.Group) || !(group.data?.repeat || group.data?.blend)) return;
+    const kids = [...group.children];
+    for (const kid of kids) {
+      if (kid.data.gen && !expand) {
+        kid.remove();
+        continue;
+      }
+      delete kid.data.gen;
+      delete kid.data.source;
+      delete kid.data.along;
+      delete kid.data.blendEnd;
+    }
+    delete group.data.repeat;
+    delete group.data.blend;
+    if (expand) {
+      this.select([group]);
+      this.commit("", "Expand");
+      return;
+    }
+    const rest = [...group.children];
+    for (const kid of rest) kid.insertBelow(group);
+    if (rest[0] && group.name) rest[rest.length - 1].name = group.name;
+    group.remove();
+    this.select(rest);
+    this.commit("", "Release");
+  }
+
+  expandLive() {
+    this.unwrapLive(true);
+  }
+
+  releaseLive() {
+    this.unwrapLive(false);
+  }
+
+  setMirrorDrawing(axis: "off" | "v" | "h" | "both") {
+    this.options.mirror = axis;
+    this.refresh();
+  }
+
+  private mirrorWrap(item: paper.Item): paper.Item {
+    if (this.options.mirror === "off" || !item.parent || item.data?.source || this.liveOwner(item)) return item;
+    const group = new this.scope.Group({ insert: false });
+    group.insertAbove(item);
+    group.addChild(item);
+    item.data.source = true;
+    const b = this.board.bounds;
+    group.data.repeat = { kind: "mirror", axis: this.options.mirror, atX: b.center.x, atY: b.center.y } as Repeat;
+    layoutRepeat(this.scope, group);
+    return group;
+  }
+
+  makeBlend() {
+    if (this.refAdjust) return;
+    const items = [...this.selection].sort((a, b) => a.index - b.index);
+    if (items.length !== 2) return;
+    const [a, b] = items;
+    const group = new this.scope.Group({ insert: false });
+    group.insertAbove(b);
+    group.addChildren([a, b]);
+    a.data.blendEnd = 0;
+    b.data.blendEnd = 1;
+    group.data.blend = { steps: 5 } as Blend;
+    this.select([group]);
+    this.commit("", "Blend");
+  }
+
+  setBlend(steps: number) {
+    const group = this.selection[0];
+    if (!group?.data?.blend) return;
+    group.data.blend = { steps: Math.max(1, Math.min(200, Math.round(steps))) };
+    this.commit("blend", "Blend");
+  }
+
+  makeSymbol() {
+    if (this.refAdjust || !this.selection.length) return;
+    if (this.selection.length > 1) this.group();
+    const master = this.selection[0];
+    if (master.data?.symbol || master.data?.instanceOf) return;
+    master.data.symbol = `s${Date.now().toString(36)}`;
+    this.placeSymbol();
+  }
+
+  placeSymbol() {
+    const item = this.selection[0];
+    const id = item?.data?.symbol ?? item?.data?.instanceOf;
+    if (!id) return;
+    const inst = new this.scope.Group({ insert: false });
+    inst.applyMatrix = false;
+    inst.data.instanceOf = id;
+    inst.insertAbove(item);
+    const master = this.art.getItem({ recursive: true, match: (i: paper.Item) => i.data?.symbol === id });
+    if (master) inst.addChild(master.clone({ insert: false }));
+    const offset = item.data?.instanceOf ? item.matrix.clone() : new this.scope.Matrix();
+    inst.matrix = new this.scope.Matrix().translate(24, 24).append(offset);
+    layoutSymbols(this.scope, this.art);
+    this.select([inst]);
+    this.commit("", "Place a copy");
+  }
+
+  selectSymbolMaster() {
+    const id = this.selection[0]?.data?.instanceOf;
+    const master = id ? this.art.getItem({ recursive: true, match: (i: paper.Item) => i.data?.symbol === id }) : null;
+    if (master) this.select([master]);
+  }
+
+  detachSymbol() {
+    const item = this.selection[0];
+    if (!item) return;
+    if (item.data?.instanceOf) {
+      const kids = [...item.children];
+      const matrix = item.matrix.clone();
+      for (const kid of kids) {
+        kid.transform(matrix);
+        delete kid.data.gen;
+        kid.insertBelow(item);
+      }
+      item.remove();
+      this.select(kids);
+    } else if (item.data?.symbol) {
+      const id = item.data.symbol;
+      delete item.data.symbol;
+      delete item.data.symbolAt;
+      for (const inst of this.art.getItems({ recursive: true, match: (i: paper.Item) => i.data?.instanceOf === id })) {
+        const matrix = inst.matrix.clone();
+        for (const kid of [...inst.children]) {
+          kid.transform(matrix);
+          delete kid.data.gen;
+          kid.insertBelow(inst);
+        }
+        inst.remove();
+      }
+    } else return;
+    this.commit("", "Detach");
+  }
+
+  private effectBase: { items: paper.Item[]; kind: string; bounds: paper.Rectangle; saved: Map<paper.Path, { segments: paper.Segment[]; closed: boolean }> } | null = null;
+
+  private effectPaths(kind: string): Map<paper.Path, { segments: paper.Segment[]; closed: boolean }> | null {
+    const paths = this.selectedPaths();
+    if (!paths.length) return null;
+    if (!this.effectBase || this.effectBase.kind !== kind || !sameItems(this.effectBase.items, this.selection)) {
+      this.effectBase = { items: [...this.selection], kind, bounds: this.selectionBounds()!, saved: new Map(paths.map((p) => [p, { segments: p.segments.map((s) => s.clone()), closed: p.closed }])) };
+    }
+    for (const [path, base] of this.effectBase.saved) {
+      path.removeSegments();
+      path.addSegments(base.segments.map((s) => s.clone()));
+      path.closed = base.closed;
+    }
+    return this.effectBase.saved;
+  }
+
+  applyEffect<K extends EffectKind>(kind: K, params: EffectParams[K]) {
+    if (this.refAdjust) return;
+    const saved = this.effectPaths(kind);
+    if (!saved || !this.effectBase) return;
+    const b = this.effectBase.bounds;
+    const radius = Math.max(b.width, b.height) / 2;
+    for (const path of saved.keys()) {
+      if (kind === "roughen") roughen(this.scope, path, params as EffectParams["roughen"]);
+      else if (kind === "zigzag") zigzag(this.scope, path, params as EffectParams["zigzag"]);
+      else if (kind === "pucker") puckerBloat(this.scope, path, (params as EffectParams["pucker"]).amount, path.bounds.center);
+      else {
+        prepareForBend(path);
+        const f = kind === "twist" ? twistMap((params as EffectParams["twist"]).angle, b.center, radius) : warpMap((params as EffectParams["warp"]).style, (params as EffectParams["warp"]).bend, b);
+        mapPath(this.scope, path, f);
+      }
+    }
+    this.nodes = [];
+    this.curve = null;
+    const base = this.effectBase;
+    const labels: Record<EffectKind, string> = { roughen: "Roughen", zigzag: "Zig zag", pucker: "Pucker and bloat", twist: "Twist", warp: "Warp" };
+    this.commit(`fx-${kind}`, labels[kind]);
+    this.effectBase = base;
+  }
+
+  private distortState: { items: paper.Item[]; rect: paper.Rectangle; quad: [number, number][]; saved: Map<paper.Path, paper.Segment[]> } | null = null;
+
+  private distortQuad(): [number, number][] | null {
+    if (!this.selection.length) return null;
+    if (this.distortState && sameItems(this.distortState.items, this.selection)) return this.distortState.quad;
+    const b = this.selectionBounds()!;
+    return [
+      [b.left, b.top],
+      [b.right, b.top],
+      [b.right, b.bottom],
+      [b.left, b.bottom]
+    ];
+  }
+
+  private startDistort() {
+    if (this.distortState && sameItems(this.distortState.items, this.selection)) return;
+    const paths = this.selectedPaths();
+    for (const p of paths) prepareForBend(p);
+    const b = this.selectionBounds()!;
+    this.distortState = {
+      items: [...this.selection],
+      rect: b,
+      quad: this.distortQuad()!,
+      saved: new Map(paths.map((p) => [p, p.segments.map((s) => s.clone())]))
+    };
+  }
+
+  private applyDistort() {
+    const st = this.distortState;
+    if (!st) return;
+    const f = perspectiveMap(st.rect, st.quad);
+    for (const [path, segs] of st.saved) {
+      path.removeSegments();
+      path.addSegments(segs.map((s) => s.clone()));
+      mapPath(this.scope, path, f);
+    }
+  }
+
+  private drawDistortHandles(z: number) {
+    const quad = this.distortQuad();
+    if (!quad) return;
+    const pts = quad.map(([x, y]) => new this.scope.Point(x, y));
+    new this.scope.Path({ segments: pts, closed: true, strokeColor: ACCENT, strokeWidth: 1 / z, dashArray: [4 / z, 3 / z] });
+    pts.forEach((p, i) => {
+      const h = new this.scope.Path.Circle({ center: p, radius: 6 / z, fillColor: "white", strokeColor: ACCENT, strokeWidth: 1.5 / z });
+      h.data.handle = `d-${i}`;
+    });
+  }
+
+  setStrokeAlign(align: StrokeAlign) {
+    if (this.refAdjust) return;
+    for (const path of this.leafShapesOfSelection()) {
+      if (align === "center") delete path.data.strokeAlign;
+      else path.data.strokeAlign = align;
+    }
+    this.commit("", "Outline position");
+  }
+
+  private leafShapesOfSelection(): paper.PathItem[] {
+    const out: paper.PathItem[] = [];
+    const walk = (item: paper.Item) => {
+      if (item.data?.gen || item.data?.head) return;
+      if (item instanceof this.scope.PathItem) out.push(item);
+      else if (item instanceof this.scope.Group) for (const kid of item.children) walk(kid);
+    };
+    for (const item of this.selection) walk(item);
+    return out;
+  }
+
+  captureTile(): boolean {
+    if (!this.selection.length) return false;
+    this.clearSelectionFlags();
+    const group = new this.scope.Group({ insert: false, children: this.selection.map((i) => i.clone({ insert: false })) });
+    const b = group.strokeBounds;
+    group.translate(b.topLeft.multiply(-1));
+    const svg = group.exportSVG({ asString: true, precision: 2 }) as string;
+    this.tile = { tile: svg, tileW: Math.max(1, Math.round(b.width * 100) / 100), tileH: Math.max(1, Math.round(b.height * 100) / 100) };
+    this.refresh();
+    return true;
+  }
+
+  recolor(from: string, to: string) {
+    if (this.refAdjust || from === to) return;
+    const swap = (c: paper.Color | null): paper.Color | null => {
+      if (!c) return c;
+      if (c.gradient) {
+        const g = c as unknown as { origin: paper.Point; destination: paper.Point };
+        const stops = c.gradient.stops.map((s, i, all) => [toHex(s.color) === from ? to : s.color, s.offset ?? i / Math.max(1, all.length - 1)]);
+        return new this.scope.Color({ gradient: { stops, radial: c.gradient.radial }, origin: g.origin, destination: g.destination } as unknown as paper.Color);
+      }
+      if (toHex(c) !== from) return c;
+      const next = new this.scope.Color(to);
+      next.alpha = c.alpha;
+      return next;
+    };
+    for (const item of this.art.getItems({ recursive: true, match: (i: paper.Item) => !(i.parent instanceof this.scope.CompoundPath) })) {
+      if (item.fillColor) item.fillColor = swap(item.fillColor);
+      if (item.strokeColor) item.strokeColor = swap(item.strokeColor);
+      const pattern = item.data?.pattern as PatternFill | undefined;
+      if (pattern && pattern.color === from) item.data.pattern = { ...pattern, color: to };
+      const fx = item.data?.effects as Effects | undefined;
+      if (fx) {
+        for (const key of ["shadow", "inner", "glow"] as const) if (fx[key]?.color === from) fx[key] = { ...fx[key]!, color: to } as never;
+      }
+      if (item.data?.textPath?.fill === from) item.data.textPath = { ...item.data.textPath, fill: to };
+    }
+    this.commit(`recolor-${from}`, "Recolour");
+  }
+
+  makeSoftMask() {
+    if (this.refAdjust) return;
+    const items = [...this.selection].sort((a, b) => a.index - b.index);
+    if (items.length < 2) return;
+    const mask = items[items.length - 1];
+    const group = new this.scope.Group({ insert: false });
+    group.insertAbove(mask);
+    group.addChildren([...items.slice(0, -1), mask]);
+    mask.data.maskSource = true;
+    group.data.softMask = true;
+    this.select([group]);
+    this.commit("", "Soft mask");
+  }
+
+  get canReleaseSoftMask() {
+    return this.selection.some((i) => i.data?.softMask);
+  }
+
+  releaseSoftMask() {
+    const released: paper.Item[] = [];
+    for (const item of this.selection) {
+      if (!item.data?.softMask) {
+        released.push(item);
+        continue;
+      }
+      const kids = [...item.children];
+      for (const kid of kids) {
+        delete kid.data.maskSource;
+        kid.visible = true;
+        kid.insertBelow(item);
+      }
+      item.remove();
+      released.push(...kids);
+    }
+    this.select(released);
+    this.commit("", "Release soft mask");
+  }
+
+  private measureCtx: CanvasRenderingContext2D | null = null;
+
+  private wrapText(t: paper.PointText) {
+    const width = Number(t.data.wrap);
+    const raw = String(t.data.raw ?? t.content);
+    if (!width || width <= 0) return;
+    this.measureCtx ??= document.createElement("canvas").getContext("2d");
+    const ctx = this.measureCtx as CanvasRenderingContext2D & { letterSpacing?: string };
+    ctx.font = `${t.fontWeight} ${Number(t.fontSize)}px ${t.fontFamily}`;
+    if ("letterSpacing" in ctx) ctx.letterSpacing = `${t.data.letterSpacing ?? 0}px`;
+    const lines: string[] = [];
+    for (const para of raw.split("\n")) {
+      const words = para.split(/(\s+)/);
+      let line = "";
+      for (const word of words) {
+        const next = line + word;
+        if (line.trim() && ctx.measureText(next.trimEnd()).width > width) {
+          lines.push(line.trimEnd());
+          line = word.trimStart();
+        } else line = next;
+      }
+      lines.push(line.trimEnd());
+    }
+    const content = lines.join("\n");
+    if (t.content !== content) t.content = content;
+  }
+
+  setWrap(width: number) {
+    const t = this.selection[0];
+    if (!(t instanceof this.scope.PointText)) return;
+    if (width > 0) {
+      if (!t.data.wrap) t.data.raw = t.content;
+      t.data.wrap = width;
+      this.wrapText(t);
+    } else if (t.data.wrap) {
+      t.content = String(t.data.raw ?? t.content);
+      delete t.data.wrap;
+      delete t.data.raw;
+    }
+    this.commit("wrap", "Text box");
+  }
+
+  async exportLayers(format: "svg" | "png", scale: number): Promise<{ name: string; blob: Blob }[]> {
+    this.finishPen();
+    const items = this.art.children.filter((c) => c.visible);
+    const used = new Set<string>();
+    const files: { name: string; blob: Blob }[] = [];
+    for (const [i, item] of items.entries()) {
+      let base = (item.name && !GENERATED_ID.test(item.name) ? item.name : `layer-${i + 1}`).replace(/[^\w-]+/g, "-");
+      while (used.has(base)) base += "-2";
+      used.add(base);
+      const others = this.art.children.filter((c) => c !== item && c.visible);
+      for (const o of others) o.visible = false;
+      try {
+        if (format === "svg") {
+          const doc = new DOMParser().parseFromString(this.exportSvg(), "image/svg+xml");
+          for (const hidden of Array.from(doc.documentElement.querySelectorAll('[visibility="hidden"]'))) if (!hidden.closest("mask")) hidden.remove();
+          files.push({ name: `${base}.svg`, blob: new Blob([new XMLSerializer().serializeToString(doc.documentElement)], { type: "image/svg+xml" }) });
+        } else files.push({ name: `${base}.png`, blob: await this.exportPng(scale, false, null) });
+      } finally {
+        for (const o of others) o.visible = true;
+      }
+    }
+    this.refresh();
+    return files;
+  }
+
+  blobPaint(stroke: paper.Path) {
+    if (this.refAdjust || !stroke.segments.length) return;
+    const half = Math.max(0.5, this.options.blob / 2);
+    let region: paper.PathItem;
+    if (stroke.segments.length < 2 || stroke.length < 0.5) region = new this.scope.Path.Circle({ center: stroke.firstSegment.point, radius: half, insert: false });
+    else {
+      stroke.simplify(1);
+      try {
+        region = offsetStroke(stroke as never, half, { cap: "round", join: "round", insert: false }) as unknown as paper.PathItem;
+      } catch {
+        region = strokeOutline(this.scope, Object.assign(stroke, { strokeWidth: half * 2 })) ?? new this.scope.Path.Circle({ center: stroke.firstSegment.point, radius: half, insert: false });
+      }
+    }
+    const colour = new this.scope.Color(this.defaults.fill ?? this.lineDefaults.stroke);
+    region.fillColor = colour;
+    region.strokeColor = null;
+    const hex = toHex(colour);
+    const targets = this.scopeRoot.children.filter(
+      (i): i is paper.PathItem =>
+        i instanceof this.scope.PathItem &&
+        this.shown(i) &&
+        !i.data?.gen &&
+        !i.strokeColor &&
+        !i.fillColor?.gradient &&
+        toHex(i.fillColor) === hex &&
+        i.bounds.intersects(region.bounds) &&
+        (region.intersects(i) || i.contains(region.interiorPoint) || region.contains(i.interiorPoint))
+    );
+    let result: paper.PathItem = region;
+    for (const t of targets) result = result.unite(t, { insert: false }) as paper.PathItem;
+    result.fillColor = colour;
+    result.strokeColor = null;
+    if (targets.length) {
+      const top = targets.reduce((a, b) => (a.index > b.index ? a : b));
+      result.insertAbove(top);
+      result.name = targets.find((t) => t.name)?.name ?? "";
+      for (const t of targets) t.remove();
+    } else {
+      (this.isolated ?? this.art).addChild(result);
+    }
+    const placed = targets.length ? result : this.mirrorWrap(result);
+    this.select([placed]);
+    this.commit("", "Blob brush");
+  }
+
+  calligraphy(stroke: paper.Path) {
+    if (this.refAdjust || stroke.segments.length < 2 || stroke.length < 1) return;
+    stroke.simplify(1.5);
+    const L = stroke.length;
+    const steps = Math.max(2, Math.ceil(L / 1.5));
+    const pts: paper.Point[] = [];
+    for (let i = 0; i <= steps; i++) {
+      const p = stroke.getPointAt(Math.min(L, (L * i) / steps));
+      if (p) pts.push(p);
+    }
+    const nib = new this.scope.Point({ angle: this.options.nibAngle, length: 1 });
+    const thin = Math.max(0.6, this.options.nib * 0.12);
+    const left: paper.Point[] = [];
+    const right: paper.Point[] = [];
+    pts.forEach((p, i) => {
+      const dir = (pts[Math.min(pts.length - 1, i + 1)].subtract(pts[Math.max(0, i - 1)])).normalize();
+      if (dir.isZero()) return;
+      const normal = new this.scope.Point(-dir.y, dir.x);
+      const half = Math.max(thin, this.options.nib * Math.abs(dir.cross(nib))) / 2;
+      left.push(p.add(normal.multiply(half)));
+      right.push(p.subtract(normal.multiply(half)));
+    });
+    if (left.length < 2) return;
+    const outline = new this.scope.Path({ segments: [...left, ...right.reverse()], closed: true, insert: false });
+    let shape = outline.unite(outline, { insert: false }) as paper.PathItem;
+    if (shape instanceof this.scope.Path) shape.simplify(0.4);
+    else for (const kid of shape.children as paper.Path[]) kid.simplify(0.4);
+    shape.fillColor = new this.scope.Color(this.lineDefaults.stroke);
+    shape.strokeColor = null;
+    (this.isolated ?? this.art).addChild(shape);
+    shape = this.mirrorWrap(shape) as paper.PathItem;
+    this.select([shape]);
+    this.commit("", "Calligraphy");
+  }
+
+  private isGen(item: paper.Item) {
+    for (let i: paper.Item | null = item; i && i !== this.art; i = i.parent) if (i.data?.gen) return true;
+    return false;
+  }
+
   boolean(op: BooleanOp) {
     if (this.refAdjust) return;
     const shapes = [...this.selection].filter((i): i is paper.PathItem => i instanceof this.scope.PathItem).sort((a, b) => a.index - b.index);
@@ -3625,7 +4288,8 @@ export class DrawingEngine {
         miterLimit: 10,
         fillRule: "nonzero",
         opacity: 1,
-        blendMode: "normal"
+        blendMode: "normal",
+        strokeAlign: "center"
       };
     }
     const style = this.styleSource(item);
@@ -3642,13 +4306,15 @@ export class DrawingEngine {
       miterLimit: style.miterLimit ?? 10,
       fillRule: style instanceof this.scope.PathItem && style.fillRule === "evenodd" ? "evenodd" : "nonzero",
       opacity: item.opacity,
-      blendMode: (item.blendMode as BlendMode) ?? "normal"
+      blendMode: (item.blendMode as BlendMode) ?? "normal",
+      strokeAlign: (style.data?.strokeAlign as StrokeAlign | undefined) ?? "center"
     };
   }
 
   private makeFill(item: paper.Item, fill: Fill): paper.Color | null {
     if (fill.kind === "none") return null;
     if (fill.kind === "solid") return new this.scope.Color(fill.color);
+    if (fill.kind === "pattern") return new this.scope.Color(fill.color2);
     const b = item.bounds;
     const list = (fill.stops && fill.stops.length >= 2 ? fill.stops.map((st) => ({ ...st })) : [{ color: fill.color, offset: 0 }, { color: fill.color2, offset: 1 }]).sort((p, q) => p.offset - q.offset);
     list[0].color = fill.color;
@@ -3685,7 +4351,13 @@ export class DrawingEngine {
         for (const kid of item.children) if (!kid.data?.head) apply(kid);
         return;
       }
-      if (patch.fill && !(item.data?.line && item.parent?.data?.ends)) item.fillColor = this.makeFill(item, patch.fill);
+      if (patch.fill && !(item.data?.line && item.parent?.data?.ends)) {
+        item.fillColor = this.makeFill(item, patch.fill);
+        if (patch.fill.kind === "pattern") {
+          const base = patch.fill.pattern ?? { kind: "stripes" as const, size: 12, angle: 45 };
+          item.data.pattern = { ...base, color: patch.fill.color, ...(base.kind === "tile" && !base.tile && this.tile ? this.tile : {}) };
+        } else delete item.data.pattern;
+      }
       if (patch.stroke !== undefined) item.strokeColor = patch.stroke ? new this.scope.Color(patch.stroke) : null;
       if (patch.strokeWidth !== undefined) item.strokeWidth = patch.strokeWidth;
       if (patch.dash !== undefined) item.dashArray = patch.dash ? [Math.max(2, item.strokeWidth * 3), Math.max(2, item.strokeWidth * 2)] : [];
@@ -3708,7 +4380,8 @@ export class DrawingEngine {
     const item = this.selection[0];
     if (!(item instanceof this.scope.PointText) || this.selection.length > 1) return null;
     return {
-      content: item.content,
+      content: item.data.wrap ? String(item.data.raw ?? item.content) : item.content,
+      wrap: Number(item.data.wrap) || 0,
       fontFamily: String(item.fontFamily),
       fontSize: Number(item.fontSize),
       fontWeight: String(item.fontWeight),
@@ -3722,7 +4395,10 @@ export class DrawingEngine {
     if (this.refAdjust) return;
     const item = this.selection[0];
     if (!(item instanceof this.scope.PointText)) return;
-    if (patch.content !== undefined) item.content = patch.content;
+    if (patch.content !== undefined) {
+      if (item.data.wrap) item.data.raw = patch.content;
+      else item.content = patch.content;
+    }
     if (patch.fontFamily !== undefined) item.fontFamily = patch.fontFamily;
     const ratio = Number(item.leading) / Number(item.fontSize);
     if (patch.fontSize !== undefined) {
@@ -3940,6 +4616,7 @@ export class DrawingEngine {
     const rows: LayerRow[] = [];
     const walk = (items: paper.Item[], depth: number) => {
       for (const item of [...items].reverse()) {
+        if (item.data?.gen) continue;
         const isGroup = item instanceof this.scope.Group;
         rows.push({
           id: item.id,

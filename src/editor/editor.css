@@ -5415,3 +5415,24 @@ body.is-resizing-dock-y, body.is-resizing-dock-y * { cursor: row-resize !importa
 .ve-ends select {
   width: 100%;
 }
+
+.ve-recolour {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ve-recolour input[type="color"] {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+.ve-canvas[data-tool="blob"],
+.ve-canvas[data-tool="calligraphy"] {
+  cursor: crosshair;
+}

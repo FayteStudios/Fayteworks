@@ -7,6 +7,9 @@ import { DrawingEngine, type AlignOp, type BlendMode, type BooleanOp, type Fill,
 import { DEFAULT_GLOW, DEFAULT_INNER, DEFAULT_SHADOW, type Effects, type Shadow } from "./effects";
 import { END_KINDS, type EndKind } from "./ends";
 import { fontLoader } from "./outlines";
+import { PATTERN_KINDS, type PatternKind, type StrokeAlign } from "./paint";
+import { EFFECT_DEFAULTS, WARP_STYLES, type EffectKind, type EffectParams, type WarpStyle } from "./pathEffects";
+import { createZip } from "../export/zip";
 import { downloadBlob } from "../export/output";
 import { sanitizeSvg } from "./svg";
 import { getAsset, putAsset } from "../state/assets";
@@ -39,11 +42,14 @@ const TOOLS: { tool: Tool; icon: ReactNode; label: string; key: string }[] = [
   { tool: "text", icon: "T", label: "Text", key: "T" },
   { tool: "eyedropper", icon: "💧", label: "Eyedropper", key: "I" },
   { tool: "gradient", icon: "◐", label: "Gradient", key: "G" },
+  { tool: "blob", icon: "🖌", label: "Blob brush", key: "Shift+B" },
+  { tool: "calligraphy", icon: "🖋", label: "Calligraphy pen", key: "Shift+C" },
+  { tool: "distort", icon: "⌗", label: "Distort", key: "Shift+D" },
   { tool: "hand", icon: "✋", label: "Hand (or hold Space)", key: "H" }
 ];
 
 const TOOL_KEYS: Record<string, Tool> = { v: "select", a: "direct", p: "pen", n: "pencil", c: "scissors", m: "rect", r: "rect", l: "ellipse", e: "ellipse", y: "polygon", s: "star", u: "shape", "\\": "line", t: "text", i: "eyedropper", g: "gradient", k: "knife", h: "hand" };
-const SHIFT_TOOL_KEYS: Record<string, Tool> = { a: "arc", s: "spiral", p: "curvature", e: "eraser" };
+const SHIFT_TOOL_KEYS: Record<string, Tool> = { a: "arc", s: "spiral", p: "curvature", e: "eraser", b: "blob", c: "calligraphy", d: "distort" };
 
 const TOOL_HINTS: Partial<Record<Tool, string>> = {
   select: "Click to select, Shift-click to add, drag the handles to scale, the circle to rotate. Alt-drag copies; hold Alt to measure. Click a selected shape again to line the others up to it. Double-click a group to work inside it.",
@@ -62,6 +68,9 @@ const TOOL_HINTS: Partial<Record<Tool, string>> = {
   curvature: "Click points and the line curves smoothly through them. Alt-click for a sharp corner. Click the first point to close; Enter or Esc to finish.",
   knife: "Drag through shapes to slice them into pieces (Shift for a straight cut). Works on the selection, or on everything when nothing is selected.",
   eraser: "Drag over shapes to rub parts away. Set the size on the left. Works on the selection, or on everything when nothing is selected.",
+  blob: "Paint with the fill colour. Strokes that touch the same colour merge into one shape. Set the size on the left.",
+  calligraphy: "Draw with an angled nib: thick and thin follow the direction you move. Set the nib on the left.",
+  distort: "Select shapes, then drag the four corners to bend them into any four-sided shape. Shift-drag a corner for perspective.",
   gradient: "Click a shape and drag to lay a gradient across it. Drag the ends and the colour dots; double-click the line to add a colour, Alt-click a dot to remove it."
 };
 
@@ -190,6 +199,8 @@ export default function VectorEditor({
   const [cornerRadius, setCornerRadius] = useState(8);
   const [offsetBy, setOffsetBy] = useState({ distance: 6, join: "round" as "miter" | "round" | "bevel" });
   const [outlining, setOutlining] = useState<string | null>(null);
+  const [effect, setEffect] = useState<{ kind: EffectKind; params: EffectParams }>({ kind: "roughen", params: EFFECT_DEFAULTS });
+  const [layerOut, setLayerOut] = useState("");
   const [dragRow, setDragRow] = useState<{ id: number; over: number | null; where: "above" | "below" | "inside" } | null>(null);
 
   useEffect(() => {
@@ -197,7 +208,7 @@ export default function VectorEditor({
     const stage = stageRef.current!;
     const engine = new DrawingEngine(canvas, svg, {
       onChange: () => setVersion((v) => v + 1),
-      onEditText: (item, rect) => setEditing({ item, rect, value: item.content }),
+      onEditText: (item, rect) => setEditing({ item, rect, value: item.data?.wrap ? String(item.data.raw ?? item.content) : item.content }),
       onZoom: setZoom
     });
     engine.fonts = { heading: fontCss(state.site.theme.headingFont), body: fontCss(state.site.theme.bodyFont) };
@@ -384,6 +395,24 @@ export default function VectorEditor({
   const ends = engine?.endsInfo();
   const fx = engine?.effectsInfo();
   const star = engine?.shapeInfo();
+  const live = engine?.liveInfo();
+  const runEffect = <K extends EffectKind>(kind: K, patch: Partial<EffectParams[K]>) => {
+    const params = { ...effect.params, [kind]: { ...effect.params[kind], ...patch } } as EffectParams;
+    setEffect({ kind, params });
+    engine!.applyEffect(kind, params[kind]);
+  };
+  const saveLayers = async (format: "svg" | "png") => {
+    if (!engine) return;
+    setLayerOut("busy");
+    try {
+      const files = await engine.exportLayers(format, png.scale);
+      const zip = createZip(await Promise.all(files.map(async (f) => ({ path: f.name, data: new Uint8Array(await f.blob.arrayBuffer()) }))));
+      downloadBlob(zip, `drawing-layers-${format}.zip`);
+      setLayerOut("");
+    } catch (error) {
+      setLayerOut(error instanceof Error ? error.message : String(error));
+    }
+  };
   const setFx = (patch: Partial<Effects>) => {
     const next: Effects = { ...(fx ?? {}), ...patch };
     for (const k of Object.keys(next) as (keyof Effects)[]) if (next[k] === undefined || next[k] === 0) delete next[k];
@@ -470,6 +499,15 @@ export default function VectorEditor({
                 <input type="checkbox" checked={engine.options.rulers} onChange={(e) => engine.setSnapOptions({ rulers: e.target.checked })} />
                 Rulers and guides
               </label>
+              <label className="ve-num" title="Draw one half and the other side follows">
+                <span>Mirror drawing</span>
+                <select value={engine.options.mirror} onChange={(e) => engine.setMirrorDrawing(e.target.value as "off")}>
+                  <option value="off">Off</option>
+                  <option value="v">Left and right</option>
+                  <option value="h">Top and bottom</option>
+                  <option value="both">All four ways</option>
+                </select>
+              </label>
               <label className="ve-check" title="See just the lines (Ctrl+Y)">
                 <input type="checkbox" checked={engine.outlineView} onChange={(e) => engine.setOutlineView(e.target.checked)} />
                 Outlines only
@@ -524,6 +562,17 @@ export default function VectorEditor({
           {tool === "rect" && engine && (
             <div className="ve-tool-options">
               <NumberField label="Radius" min={0} value={engine.options.radius} onChange={(n) => ((engine.options.radius = n), rerender())} />
+            </div>
+          )}
+          {tool === "blob" && engine && (
+            <div className="ve-tool-options">
+              <NumberField label="Size" min={1} value={engine.options.blob} onChange={(n) => ((engine.options.blob = n), rerender())} />
+            </div>
+          )}
+          {tool === "calligraphy" && engine && (
+            <div className="ve-tool-options">
+              <NumberField label="Nib" min={1} value={engine.options.nib} onChange={(n) => ((engine.options.nib = n), rerender())} />
+              <NumberField label="Angle" value={engine.options.nibAngle} onChange={(n) => ((engine.options.nibAngle = n), rerender())} />
             </div>
           )}
           {tool === "eraser" && engine && (
@@ -719,9 +768,9 @@ export default function VectorEditor({
             <section>
               <h3>{hasSelection ? (multi ? `${engine!.selection.length} selected` : "Selection") : "New shapes"}</h3>
               <div className="ve-row ve-segmented">
-                {(["none", "solid", "linear", "radial"] as const).map((kind) => (
+                {(["none", "solid", "linear", "radial", ...(hasSelection ? (["pattern"] as const) : [])] as const).map((kind) => (
                   <button key={kind} className={style.fill.kind === kind ? "is-active" : undefined} onClick={() => setFill({ kind })}>
-                    {kind === "none" ? "No fill" : kind === "solid" ? "Colour" : kind === "linear" ? "Linear" : "Radial"}
+                    {kind === "none" ? "No fill" : kind === "solid" ? "Colour" : kind === "linear" ? "Linear" : kind === "radial" ? "Radial" : "Pattern"}
                   </button>
                 ))}
               </div>
@@ -760,6 +809,29 @@ export default function VectorEditor({
                   </div>
                 </>
               )}
+              {style.fill.kind === "pattern" && (
+                <>
+                  <div className="ve-row ve-segmented">
+                    {PATTERN_KINDS.map((k) => (
+                      <button key={k.value} className={style.fill.pattern?.kind === k.value ? "is-active" : undefined} disabled={k.value === "tile" && !engine!.tile && style.fill.pattern?.kind !== "tile"} title={k.value === "tile" ? "Select shapes and press Use as tile first" : undefined} onClick={() => setFill({ pattern: { ...(style.fill.pattern ?? { size: 12, angle: 45 }), kind: k.value as PatternKind, ...(k.value === "tile" && engine!.tile ? engine!.tile : {}) } })}>
+                        {k.label}
+                      </button>
+                    ))}
+                  </div>
+                  <ColorControl label="Background" value={style.fill.color2} theme={theme} used={used} onChange={(color2) => setFill({ color2 })} onTheme={(color2, token) => (themeLink(color2, token), setFill({ color2 }, "fill-theme"))} />
+                  <div className="ve-grid">
+                    <NumberField label="Size" min={1} value={style.fill.pattern?.size ?? 12} onChange={(size) => setFill({ pattern: { ...(style.fill.pattern ?? { kind: "stripes", angle: 45 }), size } })} />
+                    <NumberField label="Angle" value={style.fill.pattern?.angle ?? 0} onChange={(angle) => setFill({ pattern: { ...(style.fill.pattern ?? { kind: "stripes", size: 12 }), angle } })} />
+                  </div>
+                </>
+              )}
+              {hasSelection && (
+                <div className="ve-buttons">
+                  <button title="Use the selected shapes as a tile for pattern fills" onClick={() => engine!.captureTile()}>
+                    Use as pattern tile
+                  </button>
+                </div>
+              )}
               {hasSelection && style.fill.kind !== "none" && (
                 <select aria-label="Where shapes overlap" value={style.fillRule} onChange={(e) => engine!.setStyle({ fillRule: e.target.value as "nonzero" })}>
                   <option value="nonzero">Overlaps stay filled</option>
@@ -775,6 +847,13 @@ export default function VectorEditor({
               </div>
               {style.stroke && (
                 <>
+                  {hasSelection && (
+                    <select aria-label="Outline position" value={style.strokeAlign} onChange={(e) => engine!.setStrokeAlign(e.target.value as StrokeAlign)}>
+                      <option value="center">Outline on the edge</option>
+                      <option value="inside">Outline inside</option>
+                      <option value="outside">Outline outside</option>
+                    </select>
+                  )}
                   <ColorControl label="Outline" value={style.stroke} theme={theme} used={used} onChange={(stroke) => engine!.setStyle({ stroke }, "stroke")} onTheme={(stroke, token) => (themeLink(stroke, token), engine!.setStyle({ stroke }))} />
                   <div className="ve-row">
                     <label className="ve-check">
@@ -921,6 +1000,7 @@ export default function VectorEditor({
               </div>
               <div className="ve-row">
                 <NumberField label="Line height" min={0.5} step={0.1} value={text.lineHeight} onChange={(lineHeight) => engine!.setText({ lineHeight })} />
+                <NumberField label="Wrap at" min={0} value={text.wrap} onChange={(w) => engine!.setWrap(w)} />
                 <NumberField label="Spacing" step={0.5} value={text.spacing} onChange={(spacing) => engine!.setText({ spacing })} />
               </div>
               <p className="ve-note">Name this text in Layers to make it an editable field on the page.</p>
@@ -1022,6 +1102,199 @@ export default function VectorEditor({
                 <input type="range" min={0} max={20} step={0.5} value={engine!.simplifyAmount} onChange={(e) => engine!.simplify(Number(e.target.value))} />
                 <span>{engine!.simplifyAmount}</span>
               </label>
+            </section>
+          )}
+
+          {hasSelection && engine && (
+            <section>
+              <h3>Repeat, blend and symbols</h3>
+              {live?.repeat && (
+                <>
+                  <h4>{live.repeat.kind === "grid" ? "Grid" : live.repeat.kind === "radial" ? "Around a circle" : live.repeat.kind === "mirror" ? "Mirror" : "Along a path"}</h4>
+                  <div className="ve-grid">
+                    {live.repeat.kind === "grid" && (
+                      <>
+                        <NumberField label="Across" min={1} value={live.repeat.cols} onChange={(cols) => engine.setRepeat({ cols: Math.round(cols) })} />
+                        <NumberField label="Down" min={1} value={live.repeat.rows} onChange={(rows) => engine.setRepeat({ rows: Math.round(rows) })} />
+                        <NumberField label="Gap ↔" value={live.repeat.gapX} onChange={(gapX) => engine.setRepeat({ gapX })} />
+                        <NumberField label="Gap ↕" value={live.repeat.gapY} onChange={(gapY) => engine.setRepeat({ gapY })} />
+                      </>
+                    )}
+                    {live.repeat.kind === "radial" && (
+                      <>
+                        <NumberField label="Copies" min={2} value={live.repeat.count} onChange={(count) => engine.setRepeat({ count: Math.round(count) })} />
+                        <NumberField label="Radius" min={0} value={live.repeat.radius} onChange={(radius) => engine.setRepeat({ radius })} />
+                      </>
+                    )}
+                    {live.repeat.kind === "mirror" && (
+                      <>
+                        <select aria-label="Mirror" value={live.repeat.axis} onChange={(e) => engine.setRepeat({ axis: e.target.value as "v" })}>
+                          <option value="v">Left and right</option>
+                          <option value="h">Top and bottom</option>
+                          <option value="both">All four ways</option>
+                        </select>
+                        <span />
+                        <NumberField label="Line X" value={live.repeat.atX} onChange={(atX) => engine.setRepeat({ atX })} />
+                        <NumberField label="Line Y" value={live.repeat.atY} onChange={(atY) => engine.setRepeat({ atY })} />
+                      </>
+                    )}
+                    {live.repeat.kind === "path" && (
+                      <>
+                        <NumberField label="Copies" min={1} value={live.repeat.count} onChange={(count) => engine.setRepeat({ count: Math.round(count) })} />
+                        <label className="ve-check">
+                          <input type="checkbox" checked={live.repeat.rotate} onChange={(e) => engine.setRepeat({ rotate: e.target.checked })} />
+                          Follow the path
+                        </label>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+              {live?.blend && <NumberField label="Steps" min={1} value={live.blend.steps} onChange={(steps) => engine.setBlend(steps)} />}
+              {(live?.repeat || live?.blend) && (
+                <>
+                  <p className="ve-note">Edit the original with the point tool (A) or inside the group (double-click); the copies follow.</p>
+                  <div className="ve-buttons">
+                    <button title="Turn the copies into ordinary shapes" onClick={() => engine.expandLive()}>
+                      Expand
+                    </button>
+                    <button title="Remove the copies and keep the original" onClick={() => engine.releaseLive()}>
+                      Release
+                    </button>
+                  </div>
+                </>
+              )}
+              {live?.symbol && (
+                <>
+                  <p className="ve-note">{live.symbol === "master" ? "This is the original of a symbol: every copy follows your edits." : "A copy of a symbol. Edit the original and every copy updates."}</p>
+                  <div className="ve-buttons">
+                    <button onClick={() => engine.placeSymbol()}>Place a copy</button>
+                    {live.symbol === "copy" && <button onClick={() => engine.selectSymbolMaster()}>Select the original</button>}
+                    <button title={live.symbol === "copy" ? "Make this copy an ordinary shape" : "Stop being a symbol; copies become ordinary shapes"} onClick={() => engine.detachSymbol()}>
+                      {live.symbol === "copy" ? "Detach" : "Stop being a symbol"}
+                    </button>
+                  </div>
+                </>
+              )}
+              {!live && (
+                <div className="ve-buttons">
+                  <button onClick={() => engine.makeRepeat("grid")}>Grid</button>
+                  <button onClick={() => engine.makeRepeat("radial")}>Around a circle</button>
+                  <button onClick={() => engine.makeRepeat("mirror")}>Mirror</button>
+                  <button disabled={count !== 2} title="Select a shape and a path" onClick={() => engine.makeRepeat("path")}>
+                    Along a path
+                  </button>
+                  <button disabled={count !== 2} title="Select two shapes to morph between" onClick={() => engine.makeBlend()}>
+                    Blend
+                  </button>
+                  <button title="Make a symbol: copies follow the original" onClick={() => engine.makeSymbol()}>
+                    Symbol
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {pinfo && (
+            <section>
+              <h3>Path effects</h3>
+              <select aria-label="Effect" value={effect.kind} onChange={(e) => setEffect({ ...effect, kind: e.target.value as EffectKind })}>
+                <option value="roughen">Roughen</option>
+                <option value="zigzag">Zig zag</option>
+                <option value="pucker">Pucker and bloat</option>
+                <option value="twist">Twist</option>
+                <option value="warp">Warp</option>
+              </select>
+              {effect.kind === "roughen" && (
+                <>
+                  <label className="ve-range">
+                    <span>Size</span>
+                    <input type="range" min={0} max={30} step={0.5} value={effect.params.roughen.size} onChange={(e) => runEffect("roughen", { size: Number(e.target.value) })} />
+                    <span>{effect.params.roughen.size}</span>
+                  </label>
+                  <label className="ve-range">
+                    <span>Detail</span>
+                    <input type="range" min={1} max={40} step={1} value={effect.params.roughen.detail} onChange={(e) => runEffect("roughen", { detail: Number(e.target.value) })} />
+                    <span>{effect.params.roughen.detail}</span>
+                  </label>
+                  <div className="ve-row">
+                    <label className="ve-check">
+                      <input type="checkbox" checked={effect.params.roughen.smooth} onChange={(e) => runEffect("roughen", { smooth: e.target.checked })} />
+                      Smooth
+                    </label>
+                    <div className="ve-buttons">
+                      <button onClick={() => runEffect("roughen", { seed: effect.params.roughen.seed + 1 })}>Shuffle</button>
+                    </div>
+                  </div>
+                </>
+              )}
+              {effect.kind === "zigzag" && (
+                <>
+                  <label className="ve-range">
+                    <span>Size</span>
+                    <input type="range" min={0} max={30} step={0.5} value={effect.params.zigzag.size} onChange={(e) => runEffect("zigzag", { size: Number(e.target.value) })} />
+                    <span>{effect.params.zigzag.size}</span>
+                  </label>
+                  <label className="ve-range">
+                    <span>Ridges</span>
+                    <input type="range" min={1} max={30} step={1} value={effect.params.zigzag.ridges} onChange={(e) => runEffect("zigzag", { ridges: Number(e.target.value) })} />
+                    <span>{effect.params.zigzag.ridges}</span>
+                  </label>
+                  <label className="ve-check">
+                    <input type="checkbox" checked={effect.params.zigzag.smooth} onChange={(e) => runEffect("zigzag", { smooth: e.target.checked })} />
+                    Wavy
+                  </label>
+                </>
+              )}
+              {effect.kind === "pucker" && (
+                <label className="ve-range">
+                  <span>Pucker · Bloat</span>
+                  <input type="range" min={-100} max={100} step={1} value={effect.params.pucker.amount} onChange={(e) => runEffect("pucker", { amount: Number(e.target.value) })} />
+                  <span>{effect.params.pucker.amount}</span>
+                </label>
+              )}
+              {effect.kind === "twist" && (
+                <label className="ve-range">
+                  <span>Angle</span>
+                  <input type="range" min={-360} max={360} step={5} value={effect.params.twist.angle} onChange={(e) => runEffect("twist", { angle: Number(e.target.value) })} />
+                  <span>{effect.params.twist.angle}°</span>
+                </label>
+              )}
+              {effect.kind === "warp" && (
+                <>
+                  <select aria-label="Warp style" value={effect.params.warp.style} onChange={(e) => runEffect("warp", { style: e.target.value as WarpStyle })}>
+                    {WARP_STYLES.map((w) => (
+                      <option key={w.value} value={w.value}>
+                        {w.label}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="ve-range">
+                    <span>Bend</span>
+                    <input type="range" min={-100} max={100} step={1} value={effect.params.warp.bend} onChange={(e) => runEffect("warp", { bend: Number(e.target.value) })} />
+                    <span>{effect.params.warp.bend}</span>
+                  </label>
+                </>
+              )}
+              <p className="ve-note">Moving a slider again redoes the effect from the shape you started with, until you do something else.</p>
+              <div className="ve-buttons">
+                <button title="Bend the selection by dragging its corners (Shift+D)" onClick={() => setTool("distort")}>
+                  Distort by the corners
+                </button>
+              </div>
+            </section>
+          )}
+
+          {used.length > 0 && engine && (
+            <section>
+              <details className="ve-details">
+                <summary>Recolour the drawing</summary>
+                <div className="ve-recolour">
+                  {used.map((hex, i) => (
+                    <input key={i} type="color" title={`${hex}: change it everywhere`} value={hex} onChange={(e) => engine.recolor(hex, e.target.value)} />
+                  ))}
+                </div>
+              </details>
             </section>
           )}
 
@@ -1185,6 +1458,12 @@ export default function VectorEditor({
                 </button>
                 <button disabled={!engine!.canUnclip} title="Release the clipping mask" onClick={() => engine!.unclip()}>
                   Release clip
+                </button>
+                <button disabled={!multi} title="Fade the shapes below using the top shape's shades: white shows, black hides, greys fade" onClick={() => engine!.makeSoftMask()}>
+                  Soft mask
+                </button>
+                <button disabled={!engine!.canReleaseSoftMask} onClick={() => engine!.releaseSoftMask()}>
+                  Release soft mask
                 </button>
                 <button disabled={!engine!.canTextOnPath} title="Select a text and a path, then lay the text along the path" onClick={() => engine!.textOnPath()}>
                   Text on path
@@ -1368,6 +1647,16 @@ export default function VectorEditor({
                 {png.busy ? "Saving…" : "Save as PNG"}
               </button>
               {png.error && <p className="ve-note ve-error">{png.error}</p>}
+              <h4>Each layer as its own file</h4>
+              <div className="ve-buttons">
+                <button disabled={layerOut === "busy"} onClick={() => saveLayers("svg")}>
+                  SVG files
+                </button>
+                <button disabled={layerOut === "busy"} onClick={() => saveLayers("png")}>
+                  PNG files
+                </button>
+              </div>
+              {layerOut && layerOut !== "busy" && <p className="ve-note ve-error">{layerOut}</p>}
             </section>
           )}
         </aside>
