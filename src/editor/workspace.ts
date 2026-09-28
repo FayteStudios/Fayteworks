@@ -7,7 +7,26 @@ export const RAIL_PANELS: RailPanel[] = ["pages", "layers", "data", "check"];
 
 const OPEN_PANEL_EVENT = "fayteworks:open-panel";
 
-export type FocusTool = "timeline" | "frames" | null;
+export type FocusTool = "timeline" | "frames" | "code" | "trim" | "captions" | "draw" | null;
+
+let popped = false;
+const poppedListeners = new Set<() => void>();
+
+export function setFocusPopped(next: boolean) {
+  if (next === popped) return;
+  popped = next;
+  poppedListeners.forEach((fn) => fn());
+}
+
+export function useFocusPopped(): boolean {
+  return useSyncExternalStore(
+    (fn) => {
+      poppedListeners.add(fn);
+      return () => poppedListeners.delete(fn);
+    },
+    () => popped
+  );
+}
 
 let focusTool: FocusTool = null;
 const focusToolListeners = new Set<() => void>();

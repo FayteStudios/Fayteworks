@@ -7,6 +7,7 @@ import type { Block, ListItem } from "../model/types";
 import { desktop, type VectorApp } from "../platform/desktop";
 import { editorTier, useEditor } from "../state/store";
 import { drawingColors, drawingLayers, LAYER_EFFECTS, sanitizeSvg, type LayerAnimation } from "./svg";
+import type { EditorReference } from "./VectorEditor";
 
 const VectorEditor = lazy(() => import("./VectorEditor"));
 
@@ -36,6 +37,35 @@ export function withDrawing(block: Block, svg: string) {
   const used = new Set(drawingColors(svg).map((c) => c.color));
   const colors = (Array.isArray(block.props.colors) ? block.props.colors : []) as ListItem[];
   block.props.colors = colors.filter((c) => used.has(String(c.color)));
+}
+
+export function drawingReference(block: Block): EditorReference | null {
+  if (!block.props.reference) return null;
+  const matrix = String(block.props.referenceMatrix ?? "").split(" ").filter(Boolean).map(Number);
+  return {
+    src: String(block.props.reference),
+    opacity: Number(block.props.referenceOpacity ?? 0.5),
+    visible: block.props.referenceVisible !== false,
+    matrix: matrix.length === 6 ? matrix : null
+  };
+}
+
+export function saveDrawing(b: Block, next: string, allLinks: Record<string, string>, ref: EditorReference | null) {
+  withDrawing(b, next);
+  if (ref) {
+    b.props.reference = ref.src;
+    b.props.referenceOpacity = ref.opacity;
+    b.props.referenceVisible = ref.visible;
+    b.props.referenceMatrix = ref.matrix ? ref.matrix.map((n) => Math.round(n * 10000) / 10000).join(" ") : "";
+  } else {
+    delete b.props.reference;
+    delete b.props.referenceOpacity;
+    delete b.props.referenceVisible;
+    delete b.props.referenceMatrix;
+  }
+  const kept = ((Array.isArray(b.props.colors) ? b.props.colors : []) as ListItem[]).filter((c) => !allLinks[String(c.color)]);
+  const used = new Set(drawingColors(next).map((c) => c.color));
+  b.props.colors = [...kept, ...Object.entries(allLinks).filter(([color]) => used.has(color)).map(([color, token]) => ({ color, token }))];
 }
 
 export function VectorSync() {
@@ -265,35 +295,8 @@ export function VectorTools({ block, mutate }: { block: Block; mutate: (recipe: 
           <VectorEditor
             svg={svg}
             links={links}
-            reference={
-              block.props.reference
-                ? {
-                    src: String(block.props.reference),
-                    opacity: Number(block.props.referenceOpacity ?? 0.5),
-                    visible: block.props.referenceVisible !== false,
-                    matrix: String(block.props.referenceMatrix ?? "").split(" ").filter(Boolean).map(Number).length === 6 ? String(block.props.referenceMatrix).split(" ").map(Number) : null
-                  }
-                : null
-            }
-            onSave={(next, allLinks, ref) =>
-              mutate((b) => {
-                withDrawing(b, next);
-                if (ref) {
-                  b.props.reference = ref.src;
-                  b.props.referenceOpacity = ref.opacity;
-                  b.props.referenceVisible = ref.visible;
-                  b.props.referenceMatrix = ref.matrix ? ref.matrix.map((n) => Math.round(n * 10000) / 10000).join(" ") : "";
-                } else {
-                  delete b.props.reference;
-                  delete b.props.referenceOpacity;
-                  delete b.props.referenceVisible;
-                  delete b.props.referenceMatrix;
-                }
-                const kept = ((Array.isArray(b.props.colors) ? b.props.colors : []) as ListItem[]).filter((c) => !allLinks[String(c.color)]);
-                const used = new Set(drawingColors(next).map((c) => c.color));
-                b.props.colors = [...kept, ...Object.entries(allLinks).filter(([color]) => used.has(color)).map(([color, token]) => ({ color, token }))];
-              })
-            }
+            reference={drawingReference(block)}
+            onSave={(next, allLinks, ref) => mutate((b) => saveDrawing(b, next, allLinks, ref))}
             onClose={() => setEditorOpen(false)}
           />
         </Suspense>

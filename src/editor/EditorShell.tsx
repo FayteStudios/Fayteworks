@@ -1,5 +1,6 @@
 import { openScene, useScene } from "../scenes/scenes";
 import { DesignsPanel } from "../design/DesignsPanel";
+import { CodePanel, DrawPanel, MediaPanel } from "./FocusPanels";
 import { openShortcuts, ShortcutsHost } from "../guides/ShortcutsDialog";
 import { DesignsHome } from "../design/DesignsHome";
 import { openDesignHome, useDesignHome } from "../design/home";
@@ -48,7 +49,7 @@ import { AskTextHost } from "./askText";
 import { TailwindSync } from "../tailwind/TailwindSync";
 import { VectorSync } from "../vector/VectorTools";
 import { MediaSync } from "../media/MediaTools";
-import { dragPointer, onOpenPanel, RAIL_PANELS, setFocusTool, useFocusTool, useWorkspace, type FocusTool, type RailPanel } from "./workspace";
+import { dragPointer, onOpenPanel, RAIL_PANELS, setFocusTool, useFocusTool, useWorkspace, type FocusTool, type RailPanel, setFocusPopped, useFocusPopped } from "./workspace";
 import { Icon, type IconName } from "./icons";
 import { NewMenu, OPEN_COLLECTION } from "./NewMenu";
 import { CollectionTool } from "../data/CollectionTool";
@@ -655,7 +656,11 @@ function FocusToolSwitch() {
   const tools: [FocusTool, string][] = [
     [null, "Settings"],
     ["timeline", "Animate"],
-    ...(block?.type === "flipbook" ? ([["frames", "Frames"]] as [FocusTool, string][]) : [])
+    ...(block?.type === "flipbook" ? ([["frames", "Frames"]] as [FocusTool, string][]) : []),
+    ...(block?.type === "code" ? ([["code", "Code"]] as [FocusTool, string][]) : []),
+    ...(block?.type === "video" || block?.type === "audio" ? ([["trim", "Trim"]] as [FocusTool, string][]) : []),
+    ...(block?.type === "video" ? ([["captions", "Captions"]] as [FocusTool, string][]) : []),
+    ...(block?.type === "vector" ? ([["draw", "Draw"]] as [FocusTool, string][]) : [])
   ];
   return (
     <div className="focus-tools" role="tablist" aria-label="What to work on">
@@ -723,6 +728,9 @@ function Workspace() {
   useEffect(() => {
     if (!state.focusedBlock) setFocusTool(null);
     else if (focusTool === "frames" && focusedType !== "flipbook") setFocusTool(null);
+    else if (focusTool === "code" && focusedType !== "code") setFocusTool(null);
+    else if ((focusTool === "trim" || focusTool === "captions") && focusedType !== "video" && focusedType !== "audio") setFocusTool(null);
+    else if (focusTool === "draw" && focusedType !== "vector") setFocusTool(null);
   }, [state.focusedBlock, focusTool, focusedType]);
 
   const isolated = editing && Boolean(state.focusedBlock);
@@ -747,7 +755,12 @@ function Workspace() {
     }, 120);
     return () => window.clearTimeout(id);
   }, [state.focusedBlock?.blockId]);
-  const bottom = toolOpen ? Math.max(260, layout.bottomHeight) : 0;
+  const popped = useFocusPopped();
+  const bigTool = focusTool === "draw" || focusTool === "code";
+  const bottom = toolOpen ? Math.max(bigTool ? Math.round(window.innerHeight * 0.55) : 260, layout.bottomHeight) : 0;
+  useEffect(() => {
+    if (!toolOpen && popped) setFocusPopped(false);
+  }, [toolOpen, popped]);
 
   return (
     <>
@@ -805,7 +818,10 @@ function Workspace() {
         </aside>
       )}
       {toolOpen && (
-        <aside className="panel panel--bottom focus-tool-panel">
+        <aside className={cls("panel panel--bottom focus-tool-panel", popped && "is-popped", focusTool && `focus-tool-panel--${focusTool}`)}>
+          <button className="btn btn--small focus-popout" title={popped ? "Put it back under the page" : "Give it the whole window"} onClick={() => setFocusPopped(!popped)}>
+            {popped ? "↙ Dock" : "↗ Pop out"}
+          </button>
           <div
             className="panel-resize panel-resize--bottom"
             role="separator"
@@ -815,7 +831,19 @@ function Workspace() {
               dragPointer(e, (_dx, dy) => setBottomHeight(start - dy), "is-resizing-dock-y");
             }}
           />
-          <div className="panel-body">{focusTool === "frames" ? <FramesPanel /> : <TimelinePanel />}</div>
+          <div className="panel-body">
+            {focusTool === "frames" ? (
+              <FramesPanel />
+            ) : focusTool === "code" ? (
+              <CodePanel />
+            ) : focusTool === "trim" || focusTool === "captions" ? (
+              <MediaPanel mode={focusTool} />
+            ) : focusTool === "draw" ? (
+              <DrawPanel />
+            ) : (
+              <TimelinePanel />
+            )}
+          </div>
         </aside>
       )}
       {editing && layout.palette && !clientLocked && (!isolated || makingInPlace) && <Palette onClose={() => set({ palette: false })} onManage={() => setComponents(true)} />}

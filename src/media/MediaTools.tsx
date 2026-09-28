@@ -7,7 +7,7 @@ import { useEditor } from "../state/store";
 import { buildVtt, formatTime, parseCaptions, type Cue } from "./captions";
 import type { MediaEdit, MediaInfo } from "./process";
 
-const srcKey = (block: Block) => (block.type === "video" ? "url" : "src");
+export const srcKey = (block: Block) => (block.type === "video" ? "url" : "src");
 
 const APP_KEY = "fayteworks:media-app";
 const readApp = (kind: string) => {
@@ -190,8 +190,7 @@ function useDialog() {
   return ref;
 }
 
-function TrimDialog({ kind, src, onClose, onDone }: { kind: "video" | "audio"; src: string; onClose: () => void; onDone: (ref: string | null, poster?: string) => void }) {
-  const dialogRef = useDialog();
+export function TrimBody({ kind, src, onClose, onDone }: { kind: "video" | "audio"; src: string; onClose: () => void; onDone: (ref: string | null, poster?: string) => void }) {
   const { url, blob } = useObjectUrl(src);
   const player = useRef<HTMLVideoElement & HTMLAudioElement>(null);
   const [info, setInfo] = useState<MediaInfo | null>(null);
@@ -245,13 +244,7 @@ function TrimDialog({ kind, src, onClose, onDone }: { kind: "video" | "audio"; s
 
   const duration = info?.duration ?? 0;
   return (
-    <dialog ref={dialogRef} className="dialog media-dialog" onClose={onClose} onCancel={onClose}>
-      <header className="dialog-header">
-        <h2>Trim &amp; tidy</h2>
-        <button className="btn btn--ghost" aria-label="Close" onClick={onClose}>
-          ✕
-        </button>
-      </header>
+    <div className="media-body">
       {kind === "video" ? <video ref={player} className="media-preview" src={url || undefined} controls /> : <audio ref={player} className="media-preview" src={url || undefined} controls />}
       {info && (
         <p className="field-hint">
@@ -360,12 +353,26 @@ function TrimDialog({ kind, src, onClose, onDone }: { kind: "video" | "audio"; s
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function TrimDialog(props: { kind: "video" | "audio"; src: string; onClose: () => void; onDone: (ref: string | null, poster?: string) => void }) {
+  const dialogRef = useDialog();
+  return (
+    <dialog ref={dialogRef} className="dialog media-dialog" onClose={props.onClose} onCancel={props.onClose}>
+      <header className="dialog-header">
+        <h2>Trim &amp; tidy</h2>
+        <button className="btn btn--ghost" aria-label="Close" onClick={props.onClose}>
+          ✕
+        </button>
+      </header>
+      <TrimBody {...props} />
     </dialog>
   );
 }
 
-function CaptionsDialog({ src, captions, lang, on, onClose, onSave }: { src: string; captions: string; lang: string; on: boolean; onClose: () => void; onSave: (ref: string, lang: string, on: boolean) => void }) {
-  const dialogRef = useDialog();
+export function CaptionsBody({ src, captions, lang, on, onClose, onSave }: { src: string; captions: string; lang: string; on: boolean; onClose: () => void; onSave: (ref: string, lang: string, on: boolean) => void }) {
   const { url } = useObjectUrl(src);
   const player = useRef<HTMLVideoElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -391,13 +398,7 @@ function CaptionsDialog({ src, captions, lang, on, onClose, onSave }: { src: str
   }
 
   return (
-    <dialog ref={dialogRef} className="dialog media-dialog" onClose={onClose} onCancel={onClose}>
-      <header className="dialog-header">
-        <h2>Captions</h2>
-        <button className="btn btn--ghost" aria-label="Close" onClick={onClose}>
-          ✕
-        </button>
-      </header>
+    <div className="media-body">
       <video ref={player} className="media-preview" src={url || undefined} controls />
       <p className="field-hint">Captions help people watching without sound, and people who are deaf or hard of hearing. Pause where a line starts and add it.</p>
       <div className="captions-list">
@@ -446,6 +447,21 @@ function CaptionsDialog({ src, captions, lang, on, onClose, onSave }: { src: str
           Save captions
         </button>
       </div>
+    </div>
+  );
+}
+
+function CaptionsDialog(props: { src: string; captions: string; lang: string; on: boolean; onClose: () => void; onSave: (ref: string, lang: string, on: boolean) => void }) {
+  const dialogRef = useDialog();
+  return (
+    <dialog ref={dialogRef} className="dialog media-dialog" onClose={props.onClose} onCancel={props.onClose}>
+      <header className="dialog-header">
+        <h2>Captions</h2>
+        <button className="btn btn--ghost" aria-label="Close" onClick={props.onClose}>
+          ✕
+        </button>
+      </header>
+      <CaptionsBody {...props} />
     </dialog>
   );
 }

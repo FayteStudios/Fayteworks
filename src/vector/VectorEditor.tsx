@@ -170,8 +170,10 @@ export default function VectorEditor({
   reference,
   onion,
   onSave,
-  onClose
+  onClose,
+  embedded = false
 }: {
+  embedded?: boolean;
   svg: string;
   links: Record<string, string>;
   reference?: EditorReference | null;
@@ -198,6 +200,16 @@ export default function VectorEditor({
   const [onionOn, setOnionOn] = useState(true);
   const [trace, setTrace] = useState<{ preset: string; options: TraceOptions; skipWhite: boolean }>({ preset: "logo", options: TRACE_PRESETS[0].options, skipWhite: true });
   const [tracing, setTracing] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef(!embedded);
+  useEffect(() => {
+    if (!embedded) return;
+    const outside = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) activeRef.current = false;
+    };
+    document.addEventListener("pointerdown", outside, true);
+    return () => document.removeEventListener("pointerdown", outside, true);
+  }, [embedded]);
   const [move, setMove] = useState({ dx: 0, dy: 0, scale: 100, rotate: 0, each: false });
   const [gap, setGap] = useState("");
   const [png, setPng] = useState({ scale: 2, selection: false, white: false, busy: false, error: "" });
@@ -285,7 +297,7 @@ export default function VectorEditor({
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const eng = engineRef.current;
-      if (!eng) return;
+      if (!eng || !activeRef.current) return;
       const target = e.target as HTMLElement;
       if (target.closest("input, textarea, select, [contenteditable]")) return;
       e.stopPropagation();
@@ -444,7 +456,13 @@ export default function VectorEditor({
   const setFill = (patch: Partial<Fill>, key = "fill") => style && engine!.setStyle({ fill: { ...style.fill, ...patch } }, key);
 
   return (
-    <div className="vector-editor" role="dialog" aria-label="Drawing editor">
+    <div
+      ref={rootRef}
+      className={embedded ? "vector-editor vector-editor--embedded" : "vector-editor"}
+      role={embedded ? "region" : "dialog"}
+      aria-label="Drawing editor"
+      onPointerDown={() => (activeRef.current = true)}
+    >
       <header className="ve-bar">
         <strong>Drawing</strong>
         <div className="ve-bar-group">
