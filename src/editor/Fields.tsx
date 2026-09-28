@@ -1,11 +1,12 @@
 import { cardLayouts } from "../model/extras";
+import { LinkPicker } from "./LinkPicker";
 import { isCardShell, shellOf } from "../model/shells";
 import { useContext, useState } from "react";
 import { PicturePicker } from "../media/PhotoPicker";
 import { noteUpload } from "../quality/altText";
 import type { FieldDef } from "../model/fields";
 import { resolveColor, THEME_TOKENS } from "../model/theme";
-import { BACK_TO_CARDS, PAGE_LINK_PREFIX, type ListItem, type PropValue } from "../model/types";
+import type { ListItem, PropValue } from "../model/types";
 import { stripRich } from "../site/richText";
 import { assetUrl, isAssetRef, putAsset, useAssetVersion } from "../state/assets";
 import { useEditor } from "../state/store";
@@ -116,35 +117,10 @@ function ImageControl({ value, onChange, accept = "image/*", placeholder }: Omit
   );
 }
 
-const CUSTOM_URL = "__url";
-
 function LinkControl({ value, onChange }: Omit<ControlProps, "field">) {
-  const { state, page } = useEditor();
-  const href = value === undefined ? "" : String(value);
-  const isBack = href === BACK_TO_CARDS;
-  const isPage = href.startsWith(PAGE_LINK_PREFIX) || isBack;
+  const { page } = useEditor();
   const cardShell = Boolean(cardLayouts) && isCardShell(shellOf(page).type);
-  const pageExists = isPage && state.site.pages.some((p) => PAGE_LINK_PREFIX + p.id === href);
-  return (
-    <div className="field-link">
-      <select
-        value={isPage ? href : CUSTOM_URL}
-        onChange={(e) => onChange(e.target.value === CUSTOM_URL ? "" : e.target.value)}
-      >
-        {state.site.pages.map((p) => (
-          <option key={p.id} value={PAGE_LINK_PREFIX + p.id}>
-            Page: {p.title}
-          </option>
-        ))}
-        {(cardShell || isBack) && <option value={BACK_TO_CARDS}>Back to the cards (closes this card)</option>}
-        {isPage && !isBack && !pageExists && <option value={href}>Deleted page</option>}
-        <option value={CUSTOM_URL}>Web address…</option>
-      </select>
-      {!isPage && (
-        <input type="text" value={href} placeholder="https://… or mailto:…" onChange={(e) => onChange(e.target.value)} />
-      )}
-    </div>
-  );
+  return <LinkPicker value={value === undefined ? "" : String(value)} onChange={onChange} allowBack={cardShell} />;
 }
 
 function ListControl({ field, value, onChange }: Omit<ControlProps, "allowTokens">) {

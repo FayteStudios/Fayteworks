@@ -8,6 +8,23 @@ export interface ShellOption {
   description: string;
 }
 
+export interface PageOutlineNode {
+  key: string;
+  label: string;
+  note?: string;
+  pageId: string;
+  sectionId?: string;
+  link?: { pageId: string; sectionId: string; href: string };
+  children: PageOutlineNode[];
+}
+
+export interface PageOutline {
+  heading: string;
+  hint?: string;
+  nodes: PageOutlineNode[];
+  pageIds: string[];
+}
+
 export interface CardLayouts {
   options: ShellOption[];
   Shell: ComponentType<{ page: Page; sections: Section[]; pages: Page[] }>;
@@ -18,6 +35,7 @@ export interface CardLayouts {
   SectionSettings: ComponentType<{ page: Page; section: Section; mutateSection: (recipe: (s: Section) => void, key: string) => void }>;
   css: string;
   runtime: (root: Document | HTMLElement) => () => void;
+  outline?: (pages: Page[]) => PageOutline | null;
 }
 
 const found = import.meta.glob<{ default: CardLayouts }>("/private/cards/index.tsx", { eager: true });

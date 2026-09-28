@@ -5,8 +5,8 @@ import { useClientLock } from "../client/clientMode";
 import { createSheet } from "../model/design";
 import { getBlockDefinition } from "../blocks/registry";
 import { createBlock, createSection } from "../model/factory";
-import { cloneSection, findPage, findSection, maxBottom, moveItem, removeSection, sectionRows, type SectionRole } from "../model/ops";
-import type { Section } from "../model/types";
+import { cloneSection, findBlock, findPage, findSection, maxBottom, moveItem, removeSection, sectionRows, type SectionRole } from "../model/ops";
+import type { Block, Section } from "../model/types";
 import { gridOf, toSectionSize } from "../model/grid";
 import { settleBlocks } from "../model/collisions";
 import { BlockContent, SectionShell, blockStyle, inFlowOrder, mobileHeightOf, sectionRowsByTier } from "../site/SiteRenderer";
@@ -30,6 +30,7 @@ import {
 import { editorOrientation, editorTier, selectedBlockIds, useEditor } from "../state/store";
 import { cls } from "../util/cls";
 import { InlineMaker } from "./ComponentMaker";
+import { describeLink, LinkDialog } from "./LinkPicker";
 import { findComponent } from "../model/components";
 import { promptSaveComponent } from "./ComponentsGroup";
 import { useInlineEditing } from "./InlineEdit";
@@ -609,6 +610,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
                 <span className="editor-block-size editor-block-drag-tip">{drag.alt ? "Placing on top (release Alt to make room)" : "Making room · hold Alt to place on top"}</span>
               )}
               {hiddenNote && <span className="editor-block-hidden-tag">{hiddenNote}</span>}
+              {onlySelected && !inert && !editingText && <LinkTag block={block} sectionId={sectionId} />}
               {needsDescription(block) && (
                 <button className="editor-alt-tag" title="Screen readers can't describe this picture yet" onPointerDown={(e) => e.stopPropagation()} onClick={() => openAltText(block.id)}>
                   Add a description
@@ -741,5 +743,45 @@ export function AddSectionButton({ index }: { index: number }) {
         {page.design ? "+ Add sheet" : "+ Add section"}
       </button>
     </div>
+  );
+}
+
+function LinkTag({ block, sectionId }: { block: Block; sectionId: string }) {
+  const { state, page, commit } = useEditor();
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const field = getBlockDefinition(block.type)?.fields.find((f) => f.kind === "link");
+  if (!field) return null;
+  const href = String(block.props[field.key] ?? "");
+  if (/\{\{/.test(href)) return null;
+  const label = String(block.props.label ?? block.props.text ?? "").replace(/<[^>]*>/g, "").trim();
+  return (
+    <>
+      <button
+        className="editor-link-tag"
+        title="Change where this goes"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setAt({ x: r.left, y: r.bottom + 6 });
+        }}
+      >
+        ↗ {describeLink(href, state.site.pages)}
+      </button>
+      {at && (
+        <LinkDialog
+          title={label ? `Where “${label.slice(0, 40)}” goes` : "Where this goes"}
+          value={href}
+          at={at}
+          allowBack={Boolean(cardLayouts) && isCardShell(shellOf(page).type)}
+          onClose={() => setAt(null)}
+          onChange={(next) =>
+            commit((draft) => {
+              const b = findBlock(draft, page.id, sectionId, block.id);
+              if (b) b.props[field.key] = next;
+            }, `${block.id}.${field.key}`)
+          }
+        />
+      )}
+    </>
   );
 }
