@@ -4,7 +4,7 @@ import { TRACE_MAX_SIDE, traceImageData, type TraceOptions } from "./trace";
 import { exportEffects, hasEffects, effectsReach, installEffects, type Effects } from "./effects";
 import { layoutEnds, type Ends } from "./ends";
 import { outlineText } from "./outlines";
-import { exportPaint, importPaint, installPaint, onTileReady, type PaintExport, type PatternFill, type StrokeAlign } from "./paint";
+import { exportPaint, importPaint, installPaint, onTileReady, type ExtraPaint, type PaintExport, type PatternFill, type StrokeAlign } from "./paint";
 import { mapPath, perspectiveMap, prepareForBend, puckerBloat, roughen, twistMap, warpMap, zigzag, type EffectKind, type EffectParams } from "./pathEffects";
 import { layoutBlend, layoutBoolean, layoutRepeat, layoutSymbols, type Blend, type Repeat } from "./live";
 import { outlineData, profilePoints, widthAt, widthOutline, type WidthPoint, type WidthProfile } from "./strokes";
@@ -581,7 +581,7 @@ export class DrawingEngine {
     this.restoreDim();
     const texts = this.art.getItems({ recursive: true, class: this.scope.PointText, match: (t: paper.PointText) => t.content.includes("\n") }) as paper.PointText[];
     for (const t of texts) t.data.leading = Math.round(Number(t.leading) * 100) / 100;
-    const painted = this.art.getItems({ recursive: true, match: (i: paper.Item) => i instanceof this.scope.PathItem && Boolean((i.data?.strokeAlign && i.data.strokeAlign !== "center") || i.data?.pattern || i.data?.widths?.length) }) as paper.PathItem[];
+    const painted = this.art.getItems({ recursive: true, match: (i: paper.Item) => i instanceof this.scope.PathItem && Boolean((i.data?.strokeAlign && i.data.strokeAlign !== "center") || i.data?.pattern || i.data?.widths?.length || i.data?.extra?.length) }) as paper.PathItem[];
     for (const p of painted) {
       const stroke = p.strokeColor;
       const paint: PaintExport = {
@@ -1024,6 +1024,7 @@ export class DrawingEngine {
       delete item.data?.strokeAlign;
       delete item.data?.widths;
       delete item.data?.operand;
+      delete item.data?.extra;
       delete item.data?.softMask;
       if (item instanceof this.scope.Group && item.clipped) item.clipped = false;
       if (item.clipMask) item.clipMask = false;
@@ -4066,6 +4067,20 @@ export class DrawingEngine {
       const h = new this.scope.Path.Circle({ center: p, radius: 6 / z, fillColor: "white", strokeColor: ACCENT, strokeWidth: 1.5 / z });
       h.data.handle = `d-${i}`;
     });
+  }
+
+  extrasInfo(): ExtraPaint[] | null {
+    const first = this.leafShapesOfSelection()[0];
+    return first ? ((first.data?.extra as ExtraPaint[] | undefined) ?? []).map((x) => ({ ...x })) : null;
+  }
+
+  setExtras(list: ExtraPaint[]) {
+    if (this.refAdjust) return;
+    for (const shape of this.leafShapesOfSelection()) {
+      if (list.length) shape.data.extra = list.map((x) => ({ ...x }));
+      else delete shape.data.extra;
+    }
+    this.commit("extras", "Extra fills and outlines");
   }
 
   setStrokeAlign(align: StrokeAlign) {

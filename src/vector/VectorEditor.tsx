@@ -7,7 +7,7 @@ import { DrawingEngine, type AlignOp, type BlendMode, type BooleanOp, type Fill,
 import { DEFAULT_GLOW, DEFAULT_INNER, DEFAULT_SHADOW, type Effects, type Shadow } from "./effects";
 import { END_KINDS, type EndKind } from "./ends";
 import { fontLoader } from "./outlines";
-import { PATTERN_KINDS, type PatternKind, type StrokeAlign } from "./paint";
+import { PATTERN_KINDS, type ExtraPaint, type PatternKind, type StrokeAlign } from "./paint";
 import { EFFECT_DEFAULTS, WARP_STYLES, type EffectKind, type EffectParams, type WarpStyle } from "./pathEffects";
 import { createZip } from "../export/zip";
 import { WIDTH_PROFILES, type WidthProfile } from "./strokes";
@@ -401,6 +401,8 @@ export default function VectorEditor({
   const fx = engine?.effectsInfo();
   const star = engine?.shapeInfo();
   const profile = engine?.widthProfile();
+  const extras = engine?.extrasInfo();
+  const setExtra = (i: number, patch: Partial<ExtraPaint>) => extras && engine!.setExtras(extras.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const live = engine?.liveInfo();
   const runEffect = <K extends EffectKind>(kind: K, patch: Partial<EffectParams[K]>) => {
     const params = { ...effect.params, [kind]: { ...effect.params[kind], ...patch } } as EffectParams;
@@ -954,6 +956,40 @@ export default function VectorEditor({
                   </select>
                 </div>
               )}
+            </section>
+          )}
+
+          {extras && (
+            <section>
+              <h3>Extra fills and outlines</h3>
+              {extras.length === 0 && <p className="ve-note">Stack more fills and outlines under the shape's own, for double outlines, offset shadows and stickers.</p>}
+              {extras.map((x, i) => (
+                <div key={i} className="ve-extra">
+                  <div className="ve-row">
+                    <strong>{x.kind === "fill" ? "Fill" : "Outline"}</strong>
+                    <input type="color" aria-label="Colour" value={x.color} onChange={(e) => setExtra(i, { color: e.target.value })} />
+                    {x.kind === "stroke" && <NumberField label="Width" min={0} step={0.5} value={x.width} onChange={(width) => setExtra(i, { width })} />}
+                    <button className="ve-layer-toggle" title="Move up (drawn later)" disabled={i === extras.length - 1} onClick={() => engine!.setExtras(extras.map((_, j) => extras[j === i ? i + 1 : j === i + 1 ? i : j]))}>
+                      ▲
+                    </button>
+                    <button className="ve-layer-toggle" title="Remove" onClick={() => engine!.setExtras(extras.filter((_, j) => j !== i))}>
+                      ×
+                    </button>
+                  </div>
+                  <div className="ve-row">
+                    <NumberField label="Move X" value={x.dx} onChange={(dx) => setExtra(i, { dx })} />
+                    <NumberField label="Y" value={x.dy} onChange={(dy) => setExtra(i, { dy })} />
+                    <label className="ve-range">
+                      <input type="range" min={0} max={1} step={0.05} value={x.opacity} onChange={(e) => setExtra(i, { opacity: Number(e.target.value) })} />
+                      <span>{Math.round(x.opacity * 100)}%</span>
+                    </label>
+                  </div>
+                </div>
+              ))}
+              <div className="ve-buttons">
+                <button onClick={() => engine!.setExtras([...extras, { kind: "fill", color: "#1d1b18", opacity: 0.3, width: 0, dx: 4, dy: 4 }])}>+ Fill</button>
+                <button onClick={() => engine!.setExtras([...extras, { kind: "stroke", color: "#ffffff", opacity: 1, width: Math.max(4, (style?.strokeWidth ?? 2) * 3), dx: 0, dy: 0 }])}>+ Outline</button>
+              </div>
             </section>
           )}
 

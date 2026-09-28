@@ -14,6 +14,15 @@ export interface PatternFill {
   tileH?: number;
 }
 
+export interface ExtraPaint {
+  kind: "fill" | "stroke";
+  color: string;
+  opacity: number;
+  width: number;
+  dx: number;
+  dy: number;
+}
+
 export interface PaintExport {
   stroke: string | null;
   strokeOpacity: number;
@@ -98,7 +107,7 @@ function canvasPattern(ctx: CanvasRenderingContext2D, p: PatternFill, scale: num
 let patched = false;
 
 type Raw = {
-  _data?: { strokeAlign?: StrokeAlign; pattern?: PatternFill; softMask?: boolean; maskSource?: boolean; widths?: WidthPoint[] };
+  _data?: { strokeAlign?: StrokeAlign; pattern?: PatternFill; softMask?: boolean; maskSource?: boolean; widths?: WidthPoint[]; extra?: ExtraPaint[] };
   _visible: boolean;
   _opacity: number;
   _blendMode: string;
@@ -189,6 +198,31 @@ export function installPaint(scope: paper.PaperScope) {
     const align = data?.strokeAlign && data.strokeAlign !== "center" ? data.strokeAlign : null;
     const pattern = data?.pattern;
     const widths = data?.widths?.length && this instanceof PathClass ? data.widths : null;
+    const extra = data?.extra?.length && this instanceof (PathItem as unknown as new () => object) && this._visible && this._opacity > 0 ? data.extra : null;
+    if (extra) {
+      const shape = new Path2D(this.getPathData(null, 3));
+      const rule = this.getFillRule() || "nonzero";
+      ctx.save();
+      (this._matrix as unknown as { applyToContext(c: CanvasRenderingContext2D): void }).applyToContext(ctx);
+      const alpha = ctx.globalAlpha * this._opacity;
+      for (const x of extra) {
+        ctx.save();
+        ctx.translate(x.dx || 0, x.dy || 0);
+        ctx.globalAlpha = alpha * Math.max(0, Math.min(1, x.opacity));
+        if (x.kind === "fill") {
+          ctx.fillStyle = x.color;
+          ctx.fill(shape, rule);
+        } else {
+          ctx.strokeStyle = x.color;
+          ctx.lineWidth = Math.max(0, x.width);
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.stroke(shape);
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+    }
     if ((!align && !pattern && !widths) || !(this instanceof (PathItem as unknown as new () => object)) || !this._visible || this._opacity === 0) return prev.call(this, ctx, ...rest);
     const values = this._style._values;
     const stroke = this.getStrokeColor();
@@ -264,7 +298,7 @@ export function exportPaint(doc: XMLDocument, root: Element) {
   const stamp = (++idCount).toString(36);
   let k = 0;
   for (const el of Array.from(root.querySelectorAll("[data-paper-data]"))) {
-    const data = parseData(el) as { strokeAlign?: StrokeAlign; pattern?: PatternFill; paint?: PaintExport; softMask?: boolean } | null;
+    const data = parseData(el) as { strokeAlign?: StrokeAlign; pattern?: PatternFill; paint?: PaintExport; softMask?: boolean; extra?: ExtraPaint[] } | null;
     if (!data) continue;
     if ((data as { operand?: boolean }).operand) {
       el.setAttribute("visibility", "hidden");
@@ -291,8 +325,10 @@ export function exportPaint(doc: XMLDocument, root: Element) {
       continue;
     }
     const align = data.strokeAlign && data.strokeAlign !== "center" ? data.strokeAlign : null;
-    if ((!align && !data.pattern && !data.paint?.outline) || !data.paint) continue;
+    const extras = data.extra ?? [];
+    if ((!align && !data.pattern && !data.paint?.outline && !extras.length) || !data.paint) continue;
     const paint = data.paint;
+    const custom = Boolean(align || data.pattern || paint.outline);
     const group = doc.createElementNS(SVG_NS, "g");
     group.setAttribute("data-fw-paint", "1");
     if (el.getAttribute("id")) {
@@ -302,14 +338,35 @@ export function exportPaint(doc: XMLDocument, root: Element) {
     group.setAttribute("data-paper-data", el.getAttribute("data-paper-data")!);
     el.removeAttribute("data-paper-data");
     el.parentNode!.replaceChild(group, el);
-    for (const attr of ["stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "stroke-opacity"]) el.removeAttribute(attr);
-    el.setAttribute("stroke", "none");
-    group.appendChild(el);
     const bare = () => {
       const c = el.cloneNode(false) as Element;
-      for (const attr of ["id", "filter", "data-paper-data", "fill-opacity"]) c.removeAttribute(attr);
+      for (const attr of ["id", "filter", "data-paper-data", "fill-opacity", "data-fw-base"]) c.removeAttribute(attr);
       return c;
     };
+    for (const x of extras) {
+      const c = bare();
+      for (const attr of ["stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "stroke-opacity", "fill", "fill-rule"]) c.removeAttribute(attr);
+      if (x.dx || x.dy) c.setAttribute("transform", `translate(${n(x.dx || 0)} ${n(x.dy || 0)})${el.getAttribute("transform") ? ` ${el.getAttribute("transform")}` : ""}`);
+      if (x.kind === "fill") {
+        c.setAttribute("fill", x.color);
+        c.setAttribute("fill-rule", paint.rule);
+        if (x.opacity < 1) c.setAttribute("fill-opacity", n(x.opacity));
+        c.setAttribute("stroke", "none");
+      } else {
+        c.setAttribute("fill", "none");
+        c.setAttribute("stroke", x.color);
+        c.setAttribute("stroke-width", n(x.width));
+        c.setAttribute("stroke-linejoin", "round");
+        c.setAttribute("stroke-linecap", "round");
+        if (x.opacity < 1) c.setAttribute("stroke-opacity", n(x.opacity));
+      }
+      group.appendChild(c);
+    }
+    el.setAttribute("data-fw-base", "1");
+    group.appendChild(el);
+    if (!custom) continue;
+    for (const attr of ["stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "stroke-opacity"]) el.removeAttribute(attr);
+    el.setAttribute("stroke", "none");
     if (data.pattern) {
       const t = tileSvg(data.pattern);
       const id = `fw-pattern-${stamp}-${++k}`;
@@ -383,8 +440,9 @@ export function exportPaint(doc: XMLDocument, root: Element) {
 
 export function importPaint(root: Element) {
   for (const group of Array.from(root.querySelectorAll("g[data-fw-paint]"))) {
-    const base = group.firstElementChild;
+    const base = Array.from(group.children).find((c) => c.hasAttribute("data-fw-base")) ?? group.firstElementChild;
     if (!base) continue;
+    base.removeAttribute("data-fw-base");
     const data = parseData(group) as { paint?: PaintExport } | null;
     if (group.getAttribute("id")) base.setAttribute("id", group.getAttribute("id")!);
     if (group.getAttribute("data-paper-data")) base.setAttribute("data-paper-data", group.getAttribute("data-paper-data")!);

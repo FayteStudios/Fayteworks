@@ -5436,3 +5436,25 @@ body.is-resizing-dock-y, body.is-resizing-dock-y * { cursor: row-resize !importa
 .ve-canvas[data-tool="calligraphy"] {
   cursor: crosshair;
 }
+
+.ve-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+}
+
+.ve-extra input[type="color"] {
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: none;
+}
+
+.ve-extra .ve-num {
+  flex: 1;
+}
