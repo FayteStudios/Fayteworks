@@ -1,3 +1,4 @@
+import { openShortcuts } from "./ShortcutsDialog";
 import { openDesignHome } from "../design/home";
 import { dotHidden, setDotHidden } from "../helper/DotHelper";
 import { useEffect, useRef, useState } from "react";
@@ -45,6 +46,16 @@ function GuideDialog({ guideId, onClose, onOpen }: { guideId: string; onClose: (
               Bring Dot back
             </button>
           )}
+          <button
+            className="btn btn--ghost"
+            title="Keyboard shortcuts (?)"
+            onClick={() => {
+              onClose();
+              openShortcuts();
+            }}
+          >
+            Keyboard shortcuts
+          </button>
           {guide && (
             <button className="btn btn--ghost" onClick={() => onOpen("")}>
               All guides

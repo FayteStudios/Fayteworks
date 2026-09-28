@@ -1,5 +1,6 @@
 import { openScene, useScene } from "../scenes/scenes";
 import { DesignsPanel } from "../design/DesignsPanel";
+import { openShortcuts, ShortcutsHost } from "../guides/ShortcutsDialog";
 import { DesignsHome } from "../design/DesignsHome";
 import { openDesignHome, useDesignHome } from "../design/home";
 import { FramesPanel } from "../motion/FlipbookTools";
@@ -94,6 +95,11 @@ function useShortcuts() {
       if (mod && key === "y") {
         event.preventDefault();
         redo();
+        return;
+      }
+      if (key === "?" && !mod) {
+        event.preventDefault();
+        openShortcuts();
         return;
       }
       if (key === "escape") {
@@ -304,7 +310,6 @@ function DeviceBar() {
       >
         {state.landscape && canRotate(device) ? "▭" : "▯"}
       </button>
-      <ZoomControl />
     </div>
   );
 }
@@ -452,9 +457,9 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
             {state.site.name || "Untitled site"}
           </button>
           {desktopProject && (
-            <span className={`topbar-save topbar-save--${desktopProject.saveStatus}`} title={desktopProject.saveStatus === "error" ? desktopProject.saveError : desktopProject.project.path}>
+            <button className={`topbar-save topbar-save--${desktopProject.saveStatus}`} title={desktopProject.saveStatus === "error" ? desktopProject.saveError : `${desktopProject.project.path}\nClick for version history`} onClick={() => setHistory(true)}>
               {desktopProject.saveStatus === "saving" ? "Saving…" : desktopProject.saveStatus === "error" ? "Not saved!" : "Saved"}
-            </span>
+            </button>
           )}
         </div>
         <div className="topbar-menu" ref={fileRef} hidden={isolated || designing}>
@@ -533,13 +538,7 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
         )}
       </div>
 
-      {designing ? (
-        <div className="topbar-group device-bar">
-          <ZoomControl />
-        </div>
-      ) : (
-        <DeviceBar />
-      )}
+      {designing ? <div className="topbar-group device-bar" /> : <DeviceBar />}
 
       <div className="topbar-group">
         {editing && (
@@ -776,6 +775,11 @@ function Workspace() {
       )}
       <main className="stage">
         <Canvas />
+        {editing && (
+          <div className="canvas-zoom">
+            <ZoomControl />
+          </div>
+        )}
       </main>
       {editing && (
         <aside className="panel panel--right">
@@ -820,6 +824,7 @@ export function EditorShell() {
         <Workspace />
         <AskTextHost />
         <GuideHost />
+        <ShortcutsHost />
         <DotHelper />
         <VersionKeeper />
         <TailwindSync />
