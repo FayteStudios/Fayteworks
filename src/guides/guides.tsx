@@ -15,6 +15,7 @@ export interface GuideActions {
   openExport: () => void;
   openServices: () => void;
   openInbox: () => void;
+  openDesigns: () => void;
 }
 
 export interface GuideStep {
@@ -88,8 +89,8 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Publish",
-        body: <p>Open Export & publish, choose Netlify and press Publish. The first time it creates the site and gives you its address (something like https://your-site.netlify.app).</p>,
-        action: { label: "Open Export & publish", run: (a) => a.openExport() }
+        body: <p>Press Publish at the top right, choose Netlify and press Publish. The first time it creates the site and gives you its address (something like https://your-site.netlify.app).</p>,
+        action: { label: "Open Publish", run: (a) => a.openExport() }
       },
       {
         title: "Tell the site its address",
@@ -169,8 +170,8 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Write your first post",
-        body: <p>Open the Data tab, choose Posts, open a post and press ✎ Write. The toolbar does the formatting; pictures go in with the 🖼 button.</p>,
-        action: { label: "Open the Data tab", run: (a) => a.openPanel("data") }
+        body: <p>Open Data in the left bar, choose Posts, open a post and press ✎ Write. The toolbar does the formatting; pictures go in with the 🖼 button.</p>,
+        action: { label: "Open Data", run: (a) => a.openPanel("data") }
       },
       {
         title: "Set the site address (for the RSS feed)",
@@ -180,7 +181,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Publish",
         body: <p>Your posts, the blog page and the feed (feed.xml in the blog's folder) all go out together.</p>,
-        action: { label: "Open Export & publish", run: (a) => a.openExport() },
+        action: { label: "Open Publish", run: (a) => a.openExport() },
         copy: (s) => (feedAddress(s) ? { label: "Your RSS feed", value: feedAddress(s)! } : null)
       }
     ]
@@ -243,7 +244,7 @@ export const GUIDES: Guide[] = [
         secret: { service: "buttondown", label: "Paste the Buttondown API key" },
         desktopOnly: true
       },
-      { title: "Send a post", body: <p>Open a post (Data → Posts → ✎ Write) and press ✉ Newsletter draft. Pictures and a “Read this on the website” link are included when the site address is set.</p>, action: { label: "Open the Data tab", run: (a) => a.openPanel("data") } }
+      { title: "Send a post", body: <p>Open a post (Data → Posts → ✎ Write) and press ✉ Newsletter draft. Pictures and a “Read this on the website” link are included when the site address is set.</p>, action: { label: "Open Data", run: (a) => a.openPanel("data") } }
     ]
   },
   {
@@ -317,7 +318,7 @@ export const GUIDES: Guide[] = [
           }
         }
       },
-      { title: "Publish and try it", body: <p>Comments appear on the published site (the editor shows where). Leave a test comment and you'll see it in the repository's Discussions.</p>, action: { label: "Open Export & publish", run: (a) => a.openExport() } }
+      { title: "Publish and try it", body: <p>Comments appear on the published site (the editor shows where). Leave a test comment and you'll see it in the repository's Discussions.</p>, action: { label: "Open Publish", run: (a) => a.openExport() } }
     ]
   },
   {
@@ -332,8 +333,8 @@ export const GUIDES: Guide[] = [
       { title: "Copy the link to your social post", body: <p>Bluesky: the … menu on your post → Copy link to post. Mastodon: open the post and copy the address from the browser.</p> },
       {
         title: "Attach it to the article",
-        body: <p>On a blog made here, open the post in the Data tab and paste it into “Bluesky post for replies”. On other pages, paste it into the Comments block's post field.</p>,
-        action: { label: "Open the Data tab", run: (a) => a.openPanel("data") },
+        body: <p>On a blog made here, open the post under Data in the left bar and paste it into “Bluesky post for replies”. On other pages, paste it into the Comments block's post field.</p>,
+        action: { label: "Open Data", run: (a) => a.openPanel("data") },
         verify: {
           label: "Check the links",
           run: async (s) => {
@@ -368,7 +369,7 @@ export const GUIDES: Guide[] = [
           check: (v) => (/^https:\/\/formspree\.io\/f\/\w{4,20}$/.test(v.trim()) ? null : "Like: https://formspree.io/f/abcdwxyz")
         }
       },
-      { title: "Publish and send a test", body: <p>The first message asks you to confirm your email with Formspree; after that they arrive straight away.</p>, action: { label: "Open Export & publish", run: (a) => a.openExport() } }
+      { title: "Publish and send a test", body: <p>The first message asks you to confirm your email with Formspree; after that they arrive straight away.</p>, action: { label: "Open Publish", run: (a) => a.openExport() } }
     ]
   },
 
@@ -383,7 +384,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Publish on Netlify",
         body: <p>The inbox reads the forms of the Netlify site this project publishes to. If you haven't published there yet, follow “Put your site online”.</p>,
-        action: { label: "Open Export & publish", run: (a) => a.openExport() }
+        action: { label: "Open Publish", run: (a) => a.openExport() }
       },
       {
         title: "Send forms to Netlify",
@@ -472,7 +473,7 @@ export const GUIDES: Guide[] = [
         },
         action: { label: "Open Services", run: (a) => a.openServices() }
       },
-      { title: "Publish and say hello", body: <p>Open your published site and send a message to yourself; it arrives in the service's app.</p>, action: { label: "Open Export & publish", run: (a) => a.openExport() } }
+      { title: "Publish and say hello", body: <p>Open your published site and send a message to yourself; it arrives in the service's app.</p>, action: { label: "Open Publish", run: (a) => a.openExport() } }
     ]
   },
   {
@@ -547,7 +548,7 @@ export const GUIDES: Guide[] = [
     steps: [
       { title: "Check it over", body: <p>File → Check before publishing. Fix anything marked “to fix”; it's the first thing a client will notice.</p> },
       { title: "Save a version", body: <p>File → Version history → name it “Handed over”. If anything goes wrong later, it's one click back.</p> },
-      { title: "Publish on their accounts", body: <p>Ideally the site lives on the client's own Netlify (or other) account and domain, so they truly own it. Publish there with their token, or show them how.</p>, action: { label: "Open Export & publish", run: (a) => a.openExport() } },
+      { title: "Publish on their accounts", body: <p>Ideally the site lives on the client's own Netlify (or other) account and domain, so they truly own it. Publish there with their token, or show them how.</p>, action: { label: "Open Publish", run: (a) => a.openExport() } },
       { title: "Turn on client mode", body: <p>File → Hand over to a client. Choose a PIN you'll remember; they won't need it.</p> },
       {
         title: "Give them the site",
@@ -583,7 +584,7 @@ export const GUIDES: Guide[] = [
     cost: "Free",
     what: "When you publish something, one message can go to your Discord, Bluesky, Mastodon and Telegram straight from here, and the share pages for X, Threads, Facebook, LinkedIn and Reddit open with it filled in. Instagram and TikTok don't let other apps post, so the text is copied and the picture saved for you.",
     steps: [
-      { title: "Give your pages a share picture", body: <p>It's what shows under the link in every app. Make one with Pages → New design → Link preview, then “Use as the share picture”.</p>, action: { label: "Open Pages", run: (a) => a.openPanel("pages") } },
+      { title: "Give your pages a share picture", body: <p>It's what shows under the link in every app. Make one under Designs in the left bar → Link preview, then “Use as the share picture”.</p>, action: { label: "Open Designs", run: (a) => a.openDesigns() } },
       {
         title: "Connect the accounts that allow it",
         body: (
@@ -598,7 +599,7 @@ export const GUIDES: Guide[] = [
       { title: "Post", body: <p>File → Tell people: pick the page or post, write one message (the counters show each app's limit), tick the accounts and press Post. Then press Open next to X, Threads and the rest.</p>, action: { label: "Open Tell people", run: () => openTellPeople() } },
       {
         title: "Instagram and TikTok",
-        body: <p>Press Copy text and Save picture, then post from your phone. Links in captions don't work there, so put a Link in bio page in your profile (Pages → Ready-made page → Link in bio).</p>
+        body: <p>Press Copy text and Save picture, then post from your phone. Links in captions don't work there, so put a Link in bio page in your profile (New → Page → Link in bio).</p>
       },
       {
         title: "Share new posts automatically (optional)",
@@ -627,9 +628,9 @@ export const GUIDES: Guide[] = [
     cost: "Free",
     what: "When someone shares your page in a chat or on social media, apps show a picture, the title and the description. Without a picture, the link is easy to miss.",
     steps: [
-      { title: "Make the design", body: <p>Pages → New design → Link preview (1200 × 630). Big, short words and your logo read best at small sizes.</p>, action: { label: "Open Pages", run: (a) => a.openPanel("pages") } },
+      { title: "Make the design", body: <p>Designs in the left bar → Link preview (1200 × 630). Big, short words and your logo read best at small sizes.</p>, action: { label: "Open Designs", run: (a) => a.openDesigns() } },
       { title: "Use it", body: <p>With the design open, the panel on the right has “Use as the share picture”: pick every page without one, or a single page.</p> },
-      { title: "Describe each page", body: <p>Click empty canvas space for page settings and write a one-line description. It shows under the title.</p> },
+      { title: "Describe each page", body: <p>Open the page's settings (⋯ next to it under Pages) and write a one-line description. It shows under the title.</p> },
       { title: "Publish and test", body: <p>Publish, then paste a page's address into a chat with yourself. Apps remember old previews for a while, so a changed picture can take a day to show.</p> }
     ]
   },
@@ -641,7 +642,7 @@ export const GUIDES: Guide[] = [
     cost: "Free to publish; audio hosting may cost something for big shows",
     what: "A podcast is audio files plus a feed that podcast apps read. FayteWorks makes the pages and the feed; Apple Podcasts, Spotify and the rest pick up new episodes from it on their own.",
     steps: [
-      { title: "Add the podcast pages", body: <p>Pages → Ready-made page → Podcast. It adds an Episodes list (Data), a page per episode with a player and show notes, and turns on the feed.</p>, action: { label: "Open Pages", run: (a) => a.openPanel("pages") } },
+      { title: "Add the podcast pages", body: <p>New → Page → Podcast. It adds an Episodes list (Data), a page per episode with a player and show notes, and turns on the feed.</p>, action: { label: "Open Pages", run: (a) => a.openPanel("pages") } },
       {
         title: "Put each episode's audio somewhere",
         body: (
@@ -689,7 +690,7 @@ export const GUIDES: Guide[] = [
     cost: "What the print shop charges",
     what: "Business cards, flyers, posters and stickers made here export as print-ready files. The directory lists print shops, big and small, with what to send each kind.",
     steps: [
-      { title: "Start at the right size", body: <p>Pages → New design, and pick the size you'll print (business card, flyer, poster, sticker…). The red line is where it's cut; keep words inside the blue line.</p>, action: { label: "Open Pages", run: (a) => a.openPanel("pages") } },
+      { title: "Start at the right size", body: <p>Designs in the left bar, then pick the size you'll print (business card, flyer, poster, sticker…). The red line is where it's cut; keep words inside the blue line.</p>, action: { label: "Open Designs", run: (a) => a.openDesigns() } },
       { title: "Reach the edges", body: <p>Colours and pictures that should go to the edge of the paper go past the red line, to the outside of the sheet (the bleed). A little is cut off; that's what stops thin white edges.</p> },
       { title: "Export it", body: <p>In the design's panel: PDF, with “Include the bleed” ticked. Stickers and merch: PNG at 300 dpi.</p> },
       { title: "Pick a printer", body: <p>File → Directory → Get it made: shops by kind, price level and where they deliver, plus what file each wants.</p>, action: { label: "Open the directory", run: () => openDirectory("print") } },
@@ -704,7 +705,7 @@ export const GUIDES: Guide[] = [
     cost: "No upfront cost with print on demand; they take their base price per item",
     what: "Print-on-demand companies print a shirt, mug or poster only when someone buys it, and ship it to them. You never hold stock. You design here, upload there, and sell from your site.",
     steps: [
-      { title: "Make the print", body: <p>Pages → New design → T-shirt print. Select the sheet and set its background to none, so only your art is printed. Export PNG at 300 dpi.</p>, action: { label: "Open Pages", run: (a) => a.openPanel("pages") } },
+      { title: "Make the print", body: <p>Designs in the left bar → T-shirt print. Select the sheet and set its background to none, so only your art is printed. Export PNG at 300 dpi.</p>, action: { label: "Open Designs", run: (a) => a.openDesigns() } },
       { title: "Pick a print-on-demand service", body: <p>File → Directory → Merch, made to order. Printful and Printify connect to Shopify; Fourthwall is made for creators; Redbubble and others are marketplaces where people can find you.</p>, action: { label: "Open the directory", run: () => openDirectory("merch") } },
       { title: "Make the product there", body: <p>Upload the PNG, place it on the product, check the mockups, set your price (their base price plus your profit).</p> },
       { title: "Sell it from your site", body: <p>With Shopify: add Buy buttons for each product. With a creator shop or marketplace: link to it from a Buy button or Social links.</p>, action: { label: "Open Add", run: (a) => a.openPanel("add") } },

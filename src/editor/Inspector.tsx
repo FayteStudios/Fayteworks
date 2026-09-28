@@ -72,7 +72,7 @@ const PAGE_FIELDS: FieldDef[] = [
     kind: "textarea",
     hint: "Shown under the title in search results and link previews. Aim for one or two sentences."
   },
-  { key: "image", label: "Social preview image", kind: "image", hint: "Used when the page is shared. 1200 × 630 works best: make one with Pages → New design → Link preview, then “Use as the share picture”." }
+  { key: "image", label: "Social preview image", kind: "image", hint: "Used when the page is shared. 1200 × 630 works best: make one under Designs in the left bar → Link preview, then “Use as the share picture”." }
 ];
 
 const MOTION_FIELDS: FieldDef[] = [

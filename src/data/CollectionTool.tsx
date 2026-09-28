@@ -488,7 +488,7 @@ function BlogSettings({ collection, mutate }: { collection: Collection; mutate: 
           <input type="checkbox" checked={Boolean(collection.feed)} onChange={(e) => mutate((c) => void (c.feed = e.target.checked))} /> Publish a feed of the posts (RSS)
           <Hint>Feed readers, newsletter services and apps like Zapier read it to see new posts.</Hint>
         </label>
-        {collection.feed && !address && <p className="field-hint">The feed needs the site's public address: click empty canvas → Site settings → Public address.</p>}
+        {collection.feed && !address && <p className="field-hint">The feed needs the site's public address: click the site name at the top left → Public address.</p>}
         {collection.feed && address && postPage && <p className="field-hint">It will be at {address.replace(/\/+$/, "")}/{postPage.slug}/feed.xml</p>}
       </div>
       <div className="room-card">

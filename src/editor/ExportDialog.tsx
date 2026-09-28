@@ -238,7 +238,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       {missingDescriptions.length > 0 && (
         <p className="dialog-note">
           Tip: {missingDescriptions.join(", ")} {missingDescriptions.length === 1 ? "has" : "have"} no search description.
-          Add one in page settings (click empty canvas).
+          Add one in the page's settings (⋯ next to it under Pages).
         </p>
       )}
 

@@ -120,7 +120,7 @@ export function checkSite(site: Site, sizes: Map<string, number> = new Map()): P
   ];
   for (const [name, fg, bg, min] of themePairs) {
     const ratio = contrast(fg, bg);
-    if (ratio !== null && ratio < min) add({ key: `theme:${name}`, category: "Accessibility", severity: ratio < 3 ? "fix" : "consider", message: `${name} is hard to read (contrast ${ratio.toFixed(1)}:1; aim for ${min}:1).`, how: "Adjust the theme colours (click empty canvas → Theme)." });
+    if (ratio !== null && ratio < min) add({ key: `theme:${name}`, category: "Accessibility", severity: ratio < 3 ? "fix" : "consider", message: `${name} is hard to read (contrast ${ratio.toFixed(1)}:1; aim for ${min}:1).`, how: "Adjust the colours under Look (on the right when nothing is selected)." });
   }
   for (const page of site.pages.filter((p) => !p.design)) {
     const h1s = page.sections.flatMap((s) => s.blocks).filter((b) => b.type === "heading" && String(b.props.level) === "1" && !b.hidden).length;
@@ -160,7 +160,7 @@ export function checkSite(site: Site, sizes: Map<string, number> = new Map()): P
   }
 
   if (!site.settings.baseUrl.trim()) add({ key: "baseurl", category: "Search engines", severity: "consider", message: "The site's address isn't set.", how: "Without it there's no sitemap, share previews use relative links, and RSS feeds can't be made.", fix: { kind: "guide", guide: "site-address" } });
-  if (!site.settings.favicon) add({ key: "favicon", category: "Search engines", severity: "consider", message: "No favicon (the little icon in browser tabs and search results).", how: "Click empty canvas → Site settings → Favicon." });
+  if (!site.settings.favicon) add({ key: "favicon", category: "Search engines", severity: "consider", message: "No favicon (the little icon in browser tabs and search results).", how: "Click the site name at the top left → Tab icon." });
   const webPages = site.pages.filter((p) => !p.design);
   for (const page of webPages) {
     const at = page.sections[0] ? { pageId: page.id, sectionId: page.sections[0].id, label: page.title } : undefined;

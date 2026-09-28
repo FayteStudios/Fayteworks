@@ -64,7 +64,7 @@ export function ClientInspector() {
         </div>
       </section>
       <p className="panel-hint client-note">
-        The design and layout are locked so nothing breaks by accident. Blog posts and lists are in the Data tab.
+        The design and layout are locked so nothing breaks by accident. Blog posts and lists are under Data in the left bar.
       </p>
     </div>
   );

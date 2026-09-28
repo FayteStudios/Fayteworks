@@ -163,7 +163,7 @@ export function TellPeopleDialog({ initial, onClose }: { initial?: string; onClo
       </header>
       {!base && (
         <p className="dialog-status dialog-status--error">
-          Set your site's public address first (click empty canvas → Site settings → Public address), so posts can link to it.{" "}
+          Set your site's public address first (click the site name at the top left → Public address), so posts can link to it.{" "}
           <button className="link-button" onClick={() => (onClose(), openGuide("site-address"))}>
             Guide →
           </button>

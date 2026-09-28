@@ -482,7 +482,7 @@ export function MakerStage({ def, screenWidth }: { def: ComponentDef; screenWidt
           : tier === "tablet"
             ? "Tablets use the desktop arrangement unless you customize it (bar above the pieces). "
             : ""}
-        Add pieces from the Add tab and use <strong>◇ Field</strong> next to any setting to let each placed copy change
+        Add pieces with Add at the top and use <strong>◇ Field</strong> next to any setting to let each placed copy change
         it. Switch the device at the top to design other screen sizes.
       </p>
     </div>

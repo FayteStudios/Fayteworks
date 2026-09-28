@@ -269,7 +269,7 @@ export const BLUEPRINTS: Blueprint[] = [
   {
     id: "blank",
     name: "Blank",
-    description: "An empty frame. Add any pieces from the Add tab.",
+    description: "An empty frame. Add any pieces with Add at the top.",
     build: () => createComponent("New component")
   },
   {

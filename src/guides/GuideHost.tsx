@@ -1,3 +1,4 @@
+import { openDesignHome } from "../design/home";
 import { dotHidden, setDotHidden } from "../helper/DotHelper";
 import { useEffect, useRef, useState } from "react";
 import { openPanel } from "../editor/workspace";
@@ -134,6 +135,10 @@ function GuideView({ guide, onClose }: { guide: Guide; onClose: () => void }) {
     },
     openInbox: () => {
       window.dispatchEvent(new Event(OPEN_INBOX));
+      onClose();
+    },
+    openDesigns: () => {
+      openDesignHome();
       onClose();
     }
   };

@@ -14,7 +14,7 @@ import { cls } from "../util/cls";
 import { StylePicker } from "./StylePicker";
 import { SitePreview } from "./SitePreview";
 
-const SHARE_PICTURE: FieldDef[] = [{ key: "image", label: "Share picture", kind: "image", hint: "1200 × 630 works best. Pages → New design → Link preview makes one." }];
+const SHARE_PICTURE: FieldDef[] = [{ key: "image", label: "Share picture", kind: "image", hint: "1200 × 630 works best. Designs in the left bar → Link preview makes one." }];
 
 function LayoutDiagram({ type }: { type: ShellType }) {
   if (type === "slides") {
