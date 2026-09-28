@@ -10,6 +10,7 @@ import { fontLoader } from "./outlines";
 import { PATTERN_KINDS, type PatternKind, type StrokeAlign } from "./paint";
 import { EFFECT_DEFAULTS, WARP_STYLES, type EffectKind, type EffectParams, type WarpStyle } from "./pathEffects";
 import { createZip } from "../export/zip";
+import { WIDTH_PROFILES, type WidthProfile } from "./strokes";
 import { downloadBlob } from "../export/output";
 import { sanitizeSvg } from "./svg";
 import { getAsset, putAsset } from "../state/assets";
@@ -46,11 +47,12 @@ const TOOLS: { tool: Tool; icon: ReactNode; label: string; key: string }[] = [
   { tool: "calligraphy", icon: "🖋", label: "Calligraphy pen", key: "Shift+C" },
   { tool: "distort", icon: "⌗", label: "Distort", key: "Shift+D" },
   { tool: "builder", icon: "⊕", label: "Shape builder", key: "Shift+M" },
+  { tool: "width", icon: "⟠", label: "Width", key: "Shift+W" },
   { tool: "hand", icon: "✋", label: "Hand (or hold Space)", key: "H" }
 ];
 
 const TOOL_KEYS: Record<string, Tool> = { v: "select", a: "direct", p: "pen", n: "pencil", c: "scissors", m: "rect", r: "rect", l: "ellipse", e: "ellipse", y: "polygon", s: "star", u: "shape", "\\": "line", t: "text", i: "eyedropper", g: "gradient", k: "knife", h: "hand" };
-const SHIFT_TOOL_KEYS: Record<string, Tool> = { a: "arc", s: "spiral", p: "curvature", e: "eraser", b: "blob", c: "calligraphy", d: "distort", m: "builder" };
+const SHIFT_TOOL_KEYS: Record<string, Tool> = { a: "arc", s: "spiral", p: "curvature", e: "eraser", b: "blob", c: "calligraphy", d: "distort", m: "builder", w: "width" };
 
 const TOOL_HINTS: Partial<Record<Tool, string>> = {
   select: "Click to select, Shift-click to add, drag the handles to scale, the circle to rotate. Alt-drag copies; hold Alt to measure. Click a selected shape again to line the others up to it. Double-click a group to work inside it.",
@@ -71,6 +73,7 @@ const TOOL_HINTS: Partial<Record<Tool, string>> = {
   eraser: "Drag over shapes to rub parts away. Set the size on the left. Works on the selection, or on everything when nothing is selected.",
   blob: "Paint with the fill colour. Strokes that touch the same colour merge into one shape. Set the size on the left.",
   calligraphy: "Draw with an angled nib: thick and thin follow the direction you move. Set the nib on the left.",
+  width: "Drag out from a line to make it thicker or thinner at that spot. Drag the dots to change a width; Alt-click a dot to remove it.",
   builder: "Select overlapping shapes, then drag across the pieces to merge them into one. Alt-drag to delete pieces. Shift-click adds a shape to the selection.",
   distort: "Select shapes, then drag the four corners to bend them into any four-sided shape. Shift-drag a corner for perspective.",
   gradient: "Click a shape and drag to lay a gradient across it. Drag the ends and the colour dots; double-click the line to add a colour, Alt-click a dot to remove it."
@@ -397,6 +400,7 @@ export default function VectorEditor({
   const ends = engine?.endsInfo();
   const fx = engine?.effectsInfo();
   const star = engine?.shapeInfo();
+  const profile = engine?.widthProfile();
   const live = engine?.liveInfo();
   const runEffect = <K extends EffectKind>(kind: K, patch: Partial<EffectParams[K]>) => {
     const params = { ...effect.params, [kind]: { ...effect.params[kind], ...patch } } as EffectParams;
@@ -849,6 +853,16 @@ export default function VectorEditor({
               </div>
               {style.stroke && (
                 <>
+                  {profile && (
+                    <select aria-label="Width along the line" value={profile} onChange={(e) => engine!.setWidthProfile(e.target.value as WidthProfile)}>
+                      {WIDTH_PROFILES.map((w) => (
+                        <option key={w.value} value={w.value}>
+                          {w.label}
+                        </option>
+                      ))}
+                      {profile === "custom" && <option value="custom">Your own widths (Shift+W)</option>}
+                    </select>
+                  )}
                   {hasSelection && (
                     <select aria-label="Outline position" value={style.strokeAlign} onChange={(e) => engine!.setStrokeAlign(e.target.value as StrokeAlign)}>
                       <option value="center">Outline on the edge</option>

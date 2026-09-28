@@ -7,8 +7,9 @@ import { outlineText } from "./outlines";
 import { exportPaint, importPaint, installPaint, onTileReady, type PaintExport, type PatternFill, type StrokeAlign } from "./paint";
 import { mapPath, perspectiveMap, prepareForBend, puckerBloat, roughen, twistMap, warpMap, zigzag, type EffectKind, type EffectParams } from "./pathEffects";
 import { layoutBlend, layoutRepeat, layoutSymbols, type Blend, type Repeat } from "./live";
+import { outlineData, profilePoints, widthAt, widthOutline, type WidthPoint, type WidthProfile } from "./strokes";
 
-export type Tool = "select" | "direct" | "pen" | "curvature" | "pencil" | "scissors" | "knife" | "eraser" | "rect" | "ellipse" | "polygon" | "star" | "shape" | "line" | "arc" | "spiral" | "text" | "eyedropper" | "gradient" | "blob" | "calligraphy" | "distort" | "builder" | "hand";
+export type Tool = "select" | "direct" | "pen" | "curvature" | "pencil" | "scissors" | "knife" | "eraser" | "rect" | "ellipse" | "polygon" | "star" | "shape" | "line" | "arc" | "spiral" | "text" | "eyedropper" | "gradient" | "blob" | "calligraphy" | "distort" | "builder" | "width" | "hand";
 export type BooleanOp = "unite" | "subtract" | "intersect" | "exclude";
 export type AlignOp = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
 export type ShapeKind = "triangle" | "arrow" | "bubble" | "heart" | "cloud" | "gear" | "donut" | "pie";
@@ -579,7 +580,7 @@ export class DrawingEngine {
     this.restoreDim();
     const texts = this.art.getItems({ recursive: true, class: this.scope.PointText, match: (t: paper.PointText) => t.content.includes("\n") }) as paper.PointText[];
     for (const t of texts) t.data.leading = Math.round(Number(t.leading) * 100) / 100;
-    const painted = this.art.getItems({ recursive: true, match: (i: paper.Item) => i instanceof this.scope.PathItem && Boolean((i.data?.strokeAlign && i.data.strokeAlign !== "center") || i.data?.pattern) }) as paper.PathItem[];
+    const painted = this.art.getItems({ recursive: true, match: (i: paper.Item) => i instanceof this.scope.PathItem && Boolean((i.data?.strokeAlign && i.data.strokeAlign !== "center") || i.data?.pattern || i.data?.widths?.length) }) as paper.PathItem[];
     for (const p of painted) {
       const stroke = p.strokeColor;
       const paint: PaintExport = {
@@ -591,7 +592,8 @@ export class DrawingEngine {
         miter: p.miterLimit,
         dash: [...(p.dashArray ?? [])],
         dashOffset: p.dashOffset ?? 0,
-        rule: p.fillRule || "nonzero"
+        rule: p.fillRule || "nonzero",
+        ...(p instanceof this.scope.Path && p.data.widths?.length ? { outline: outlineData(widthOutline(p, p.data.widths, p.strokeWidth)) } : {})
       };
       p.data.paint = paint;
     }
@@ -966,6 +968,7 @@ export class DrawingEngine {
     if (this.tool === "gradient") this.drawGradientHandles(z);
     if (this.tool === "distort") this.drawDistortHandles(z);
     if (this.tool === "builder") this.drawBuilder(z);
+    if (this.tool === "width") this.drawWidthHandles(z);
     if (this.options.mirror !== "off") {
       const b = this.board.bounds;
       const vb = this.scope.view.bounds;
@@ -1018,6 +1021,7 @@ export class DrawingEngine {
       if (item.data?.effects) delete item.data.effects;
       delete item.data?.pattern;
       delete item.data?.strokeAlign;
+      delete item.data?.widths;
       delete item.data?.softMask;
       if (item instanceof this.scope.Group && item.clipped) item.clipped = false;
       if (item.clipMask) item.clipMask = false;
@@ -1231,7 +1235,7 @@ export class DrawingEngine {
   private setupTool() {
     const tool = new this.scope.Tool();
     tool.minDistance = 0;
-    let mode: "none" | "move" | "scale" | "rotate" | "marquee" | "pan" | "shape" | "node" | "handle" | "bend" | "pencil" | "pen-drag" | "guide" | "knife" | "gradient" | "distort" | "builder" = "none";
+    let mode: "none" | "move" | "scale" | "rotate" | "marquee" | "pan" | "shape" | "node" | "handle" | "bend" | "pencil" | "pen-drag" | "guide" | "knife" | "gradient" | "distort" | "builder" | "width" = "none";
     let start: paper.Point;
     let last: paper.Point;
     let handleName = "";
@@ -1248,6 +1252,7 @@ export class DrawingEngine {
     let gradDrag: string | null = null;
     let corner = -1;
     let builderRemove = false;
+    let widthDrag: { path: paper.Path; index: number } | null = null;
     const touchBuilder = (from: paper.Point, to: paper.Point) => {
       const b = this.builder;
       if (!b) return;
@@ -1440,6 +1445,48 @@ export class DrawingEngine {
             if (!mods(e).shift) this.select([]);
             mode = "marquee";
           }
+          return;
+        }
+        case "width": {
+          const uiHit = this.ui.hitTest(e.point, { fill: true, stroke: true, tolerance: 4 / z });
+          const handle = uiHit?.item.data.handle as string | undefined;
+          const current = this.widthTarget();
+          if (handle?.startsWith("w-") && current) {
+            const index = Number(handle.slice(2));
+            if (mods(e).alt) {
+              current.data.widths = (current.data.widths as WidthPoint[]).filter((_, i) => i !== index);
+              if (!current.data.widths.length) delete current.data.widths;
+              current.data.widthProfile = "custom";
+              this.commit("", "Stroke width");
+              mode = "none";
+              return;
+            }
+            widthDrag = { path: current, index };
+            mode = "width";
+            return;
+          }
+          const stroked = this.scopePaths().filter((p) => p.strokeColor && p.strokeWidth > 0 && !this.isGen(p));
+          const near = stroked
+            .map((p) => ({ p, hit: this.nearestOutline(e.point, Math.max(6 / z, p.strokeWidth), [p]) }))
+            .filter((x) => x.hit)
+            .sort((a, b) => a.hit!.location.point.getDistance(e.point) - b.hit!.location.point.getDistance(e.point))[0];
+          if (!near?.hit) {
+            this.select([]);
+            mode = "none";
+            return;
+          }
+          const path = near.p;
+          const at = path.length ? near.hit.location.offset / path.length : 0;
+          const widths: WidthPoint[] = [...((path.data.widths as WidthPoint[] | undefined) ?? [])];
+          if (!widths.length) widths.push({ at: 0, w: path.strokeWidth }, { at: 1, w: path.strokeWidth });
+          widths.push({ at, w: widthAt(widths, at, path.strokeWidth) });
+          path.data.widths = widths;
+          path.data.widthProfile = "custom";
+          this.selection = [path];
+          this.nodes = [];
+          widthDrag = { path, index: widths.length - 1 };
+          mode = "width";
+          this.refresh();
           return;
         }
         case "builder": {
@@ -1699,6 +1746,13 @@ export class DrawingEngine {
         this.refresh(true);
         return;
       }
+      if (mode === "width" && widthDrag) {
+        const { path, index } = widthDrag;
+        const pt = path.getPointAt(path.length * (path.data.widths[index] as WidthPoint).at);
+        if (pt) path.data.widths[index].w = Math.max(0.2, Math.round(pt.getDistance(e.point) * 2 * 10) / 10);
+        this.refresh();
+        return;
+      }
       if (mode === "builder") {
         touchBuilder(last, e.point);
         last = e.point;
@@ -1855,6 +1909,12 @@ export class DrawingEngine {
           else this.calligraphy(stroke);
         }
         this.refresh();
+        return;
+      }
+      if (finished === "width") {
+        if (widthDrag) (widthDrag.path.data.widths as WidthPoint[]).sort((a, b) => a.at - b.at);
+        widthDrag = null;
+        this.commit("", "Stroke width");
         return;
       }
       if (finished === "builder") {
@@ -3083,6 +3143,50 @@ export class DrawingEngine {
     if (!b) return -1;
     for (let i = b.pieces.length - 1; i >= 0; i--) if (b.pieces[i].shape.contains(point)) return i;
     return -1;
+  }
+
+  private widthTarget(): paper.Path | null {
+    const item = this.selection[0];
+    return this.selection.length === 1 && item instanceof this.scope.Path && item.strokeColor ? item : null;
+  }
+
+  private drawWidthHandles(z: number) {
+    const path = this.widthTarget();
+    const widths = path?.data.widths as WidthPoint[] | undefined;
+    if (!path || !widths?.length || !path.length) return;
+    widths.forEach((w, i) => {
+      const off = path.length * w.at;
+      const p = path.getPointAt(off);
+      const n = path.getNormalAt(off);
+      if (!p || !n) return;
+      const a = p.add(n.multiply(w.w / 2));
+      const b = p.subtract(n.multiply(w.w / 2));
+      new this.scope.Path.Line({ from: a, to: b, strokeColor: ACCENT, strokeWidth: 1 / z });
+      for (const at of [a, b]) {
+        const dot = new this.scope.Path.Circle({ center: at, radius: 4.5 / z, fillColor: "white", strokeColor: ACCENT, strokeWidth: 1.5 / z });
+        dot.data.handle = `w-${i}`;
+      }
+    });
+  }
+
+  widthProfile(): WidthProfile | null {
+    const path = this.widthTarget();
+    if (!path) return null;
+    return path.data.widths?.length ? ((path.data.widthProfile as WidthProfile | undefined) ?? "custom") : "even";
+  }
+
+  setWidthProfile(profile: WidthProfile) {
+    if (this.refAdjust) return;
+    for (const path of this.selectedPaths().filter((p) => p.strokeColor)) {
+      if (profile === "even") {
+        delete path.data.widths;
+        delete path.data.widthProfile;
+      } else {
+        path.data.widths = profilePoints(profile, path.strokeWidth);
+        path.data.widthProfile = profile;
+      }
+    }
+    this.commit("", "Stroke width");
   }
 
   private drawBuilder(z: number) {
@@ -4482,7 +4586,11 @@ export class DrawingEngine {
         } else delete item.data.pattern;
       }
       if (patch.stroke !== undefined) item.strokeColor = patch.stroke ? new this.scope.Color(patch.stroke) : null;
-      if (patch.strokeWidth !== undefined) item.strokeWidth = patch.strokeWidth;
+      if (patch.strokeWidth !== undefined) {
+        const widths = item.data?.widths as WidthPoint[] | undefined;
+        if (widths?.length && item.strokeWidth) item.data.widths = widths.map((w) => ({ ...w, w: (w.w * patch.strokeWidth!) / item.strokeWidth }));
+        item.strokeWidth = patch.strokeWidth;
+      }
       if (patch.dash !== undefined) item.dashArray = patch.dash ? [Math.max(2, item.strokeWidth * 3), Math.max(2, item.strokeWidth * 2)] : [];
       if (patch.dashArray) item.dashArray = patch.dashArray;
       if (patch.dashOffset !== undefined) item.dashOffset = patch.dashOffset;

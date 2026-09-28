@@ -1,4 +1,5 @@
 import type paper from "paper/dist/paper-core";
+import { outlineData, widthOutline, type WidthPoint } from "./strokes";
 
 export type StrokeAlign = "center" | "inside" | "outside";
 export type PatternKind = "stripes" | "dots" | "checks" | "grid" | "tile";
@@ -23,6 +24,7 @@ export interface PaintExport {
   dash: number[];
   dashOffset: number;
   rule: string;
+  outline?: string;
 }
 
 export const PATTERN_KINDS: { value: PatternKind; label: string }[] = [
@@ -96,7 +98,7 @@ function canvasPattern(ctx: CanvasRenderingContext2D, p: PatternFill, scale: num
 let patched = false;
 
 type Raw = {
-  _data?: { strokeAlign?: StrokeAlign; pattern?: PatternFill; softMask?: boolean; maskSource?: boolean };
+  _data?: { strokeAlign?: StrokeAlign; pattern?: PatternFill; softMask?: boolean; maskSource?: boolean; widths?: WidthPoint[] };
   _visible: boolean;
   _opacity: number;
   _blendMode: string;
@@ -115,6 +117,10 @@ type Raw = {
   getFillRule(): CanvasFillRule;
   getPathData(matrix?: paper.Matrix | null, precision?: number): string;
   getStrokeBounds(): paper.Rectangle;
+  length: number;
+  closed: boolean;
+  getPointAt(offset: number): paper.Point | null;
+  getNormalAt(offset: number): paper.Point | null;
   draw(ctx: CanvasRenderingContext2D, ...rest: unknown[]): void;
 };
 
@@ -125,6 +131,7 @@ export function installPaint(scope: paper.PaperScope) {
   const prev = proto.draw;
   const Base = (scope as unknown as { Base: new (o: object) => object }).Base;
   const PathItem = scope.PathItem as unknown as { prototype: object };
+  const PathClass = scope.Path as unknown as new () => object;
 
   function drawSoftMask(this: Raw, ctx: CanvasRenderingContext2D, rest: unknown[]) {
     const kids = this._children ?? [];
@@ -176,7 +183,8 @@ export function installPaint(scope: paper.PaperScope) {
     if (data?.softMask && this._visible && this._opacity > 0) return drawSoftMask.call(this, ctx, rest);
     const align = data?.strokeAlign && data.strokeAlign !== "center" ? data.strokeAlign : null;
     const pattern = data?.pattern;
-    if ((!align && !pattern) || !(this instanceof (PathItem as unknown as new () => object)) || !this._visible || this._opacity === 0) return prev.call(this, ctx, ...rest);
+    const widths = data?.widths?.length && this instanceof PathClass ? data.widths : null;
+    if ((!align && !pattern && !widths) || !(this instanceof (PathItem as unknown as new () => object)) || !this._visible || this._opacity === 0) return prev.call(this, ctx, ...rest);
     const values = this._style._values;
     const stroke = this.getStrokeColor();
     const width = this.getStrokeWidth();
@@ -201,7 +209,11 @@ export function installPaint(scope: paper.PaperScope) {
         ctx.fill(path, rule);
       }
     }
-    if (stroke && width > 0) {
+    if (stroke && width > 0 && widths) {
+      const outline = new Path2D(outlineData(widthOutline(this, widths, width)));
+      ctx.fillStyle = (stroke as unknown as { toCanvasStyle(c: CanvasRenderingContext2D): string | CanvasGradient }).toCanvasStyle(ctx);
+      ctx.fill(outline, this.closed ? "evenodd" : "nonzero");
+    } else if (stroke && width > 0) {
       ctx.save();
       if (align === "inside") ctx.clip(path, rule);
       else if (align === "outside") {
@@ -270,7 +282,7 @@ export function exportPaint(doc: XMLDocument, root: Element) {
       continue;
     }
     const align = data.strokeAlign && data.strokeAlign !== "center" ? data.strokeAlign : null;
-    if ((!align && !data.pattern) || !data.paint) continue;
+    if ((!align && !data.pattern && !data.paint?.outline) || !data.paint) continue;
     const paint = data.paint;
     const group = doc.createElementNS(SVG_NS, "g");
     group.setAttribute("data-fw-paint", "1");
@@ -299,7 +311,15 @@ export function exportPaint(doc: XMLDocument, root: Element) {
       overlay.setAttribute("fill", `url(#${id})`);
       group.appendChild(overlay);
     }
-    if (paint.stroke && paint.width > 0) {
+    if (paint.stroke && paint.outline) {
+      const shape = bare();
+      shape.setAttribute("d", paint.outline);
+      shape.setAttribute("fill", paint.stroke);
+      if (paint.strokeOpacity < 1) shape.setAttribute("fill-opacity", n(paint.strokeOpacity));
+      shape.setAttribute("fill-rule", "evenodd");
+      shape.setAttribute("stroke", "none");
+      group.appendChild(shape);
+    } else if (paint.stroke && paint.width > 0) {
       const line = bare();
       line.setAttribute("fill", "none");
       line.setAttribute("stroke", paint.stroke);
