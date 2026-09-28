@@ -1,3 +1,12 @@
+export interface UpdateStatus {
+  status: "dev" | "needs-key" | "downloading" | "current" | "error";
+  current: string;
+  latest?: string;
+  message?: string;
+  badKey?: boolean;
+  repo?: string;
+}
+
 export interface ProjectRef {
   path: string;
   name: string;
@@ -128,7 +137,7 @@ export interface DesktopApi {
   onDrawingChanged(callback: (change: { blockId: string; svg: string }) => void): () => void;
   appVersion(): Promise<string>;
   installUpdate(): Promise<void>;
-  checkUpdates(): Promise<void>;
+  checkUpdates(): Promise<UpdateStatus>;
   fetchFile(url: string): Promise<{ url: string; type: string; name: string; bytes?: Uint8Array; html?: string }>;
   onUpdateNeedsKey(callback: (info: { repo: string }) => void): () => void;
   onUpdateReady(callback: (info: { version: string }) => void): () => void;

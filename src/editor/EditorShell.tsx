@@ -1,6 +1,7 @@
 import { openScene, useScene } from "../scenes/scenes";
 import { DesignsPanel } from "../design/DesignsPanel";
 import { openSecondWindow, useLiveBroadcast } from "../viewer/live";
+import { checkForUpdatesNow } from "../platform/UpdateNotice";
 import { CodePanel, DrawPanel, MediaPanel } from "./FocusPanels";
 import { FieldWires } from "./FieldWires";
 import { openShortcuts, ShortcutsHost } from "../guides/ShortcutsDialog";
@@ -475,6 +476,7 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
               {item("Check before publishing…", () => setChecking(true))}
               {item("Version history…", () => setHistory(true))}
               {item("Open a second window", openSecondWindow)}
+              {desktop && item("Check for updates", checkForUpdatesNow)}
               <hr />
               {item("Translate (languages)…", () => setTranslating(true))}
               {item("Services (payments, sign-ups, statistics)…", () => setServicesOpen(true))}

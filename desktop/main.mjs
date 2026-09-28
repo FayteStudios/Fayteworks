@@ -417,18 +417,29 @@ function registerIpc(window) {
 }
 
 async function checkForUpdates(window) {
-  if (!app.isPackaged) return;
+  const current = app.getVersion();
+  if (!app.isPackaged) return { status: "dev", current };
   const own = await readJson(path.join(here, "own-build.json"), null);
   if (own) {
     const token = await getToken("updates");
     if (!token) {
       if (!window.isDestroyed()) window.webContents.send("update:needs-key", { repo: `${own.owner}/${own.repo}` });
-      return;
+      return { status: "needs-key", current, repo: `${own.owner}/${own.repo}` };
     }
     autoUpdater.setFeedURL({ provider: "github", owner: own.owner, repo: own.repo, private: true, token });
     autoUpdater.allowPrerelease = true;
   }
-  await autoUpdater.checkForUpdates().catch((error) => console.warn("Update check failed:", error?.message ?? error));
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    const latest = result?.updateInfo?.version;
+    if (result?.isUpdateAvailable) return { status: "downloading", current, latest };
+    return { status: "current", current, latest };
+  } catch (error) {
+    const message = String(error?.message ?? error);
+    console.warn("Update check failed:", message);
+    const badKey = /401|403|404|Bad credentials|Not Found|authentication/i.test(message);
+    return { status: "error", current, message: message.split("\n")[0].slice(0, 300), badKey, repo: own ? `${own.owner}/${own.repo}` : undefined };
+  }
 }
 
 function setupUpdates(window) {
