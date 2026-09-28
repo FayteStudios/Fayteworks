@@ -3113,14 +3113,26 @@ kbd {
   background: var(--ui-border);
 }
 
-.ve-tool-options {
-  margin-top: 8px;
-  width: 44px;
+.ve-body {
+  position: relative;
 }
 
-.ve-tool-options .ve-num {
-  flex-direction: column;
-  align-items: stretch;
+.ve-tool-options {
+  position: absolute;
+  top: 10px;
+  left: 62px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-panel);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.ve-tool-options .ve-num input {
+  width: 64px;
 }
 
 .ve-stage {
@@ -3150,6 +3162,11 @@ kbd {
 .ve-canvas[data-tool="ellipse"],
 .ve-canvas[data-tool="polygon"],
 .ve-canvas[data-tool="star"],
+.ve-canvas[data-tool="shape"],
+.ve-canvas[data-tool="arc"],
+.ve-canvas[data-tool="spiral"],
+.ve-canvas[data-tool="scissors"],
+.ve-canvas[data-tool="eyedropper"],
 .ve-canvas[data-tool="line"] {
   cursor: crosshair;
 }
@@ -3448,6 +3465,180 @@ kbd {
 
 .ve-error {
   color: var(--ui-danger);
+}
+
+.ve-tools {
+  overflow-y: auto;
+}
+
+.ve-tools > button {
+  flex: none;
+}
+
+.ve-shape-picker button {
+  width: 34px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.ve-shape-picker button:hover {
+  background: var(--ui-raised);
+}
+
+.ve-shape-picker button.is-active {
+  background: rgba(79, 140, 255, 0.3);
+}
+
+.ve-used-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  width: 100%;
+}
+
+.ve-used-swatches button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ve-used-swatches button.is-active {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 1px;
+}
+
+.ve-bar .btn.is-active {
+  background: rgba(79, 140, 255, 0.25);
+  color: var(--ui-text);
+}
+
+.ve-isolation {
+  background: rgba(79, 140, 255, 0.25);
+}
+
+.ve-geo {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.ve-geo .ve-grid {
+  flex: 1;
+}
+
+.ve-refgrid {
+  display: grid;
+  grid-template-columns: repeat(3, 14px);
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  flex: none;
+}
+
+.ve-refgrid button {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 3px;
+  background: var(--ui-bg);
+  cursor: pointer;
+}
+
+.ve-refgrid button.is-active {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+}
+
+.ve-details summary {
+  cursor: pointer;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.ve-details[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ve-gap {
+  width: 110px;
+}
+
+.ve-layers li.is-drop-above {
+  box-shadow: inset 0 2px 0 var(--ui-accent);
+}
+
+.ve-layers li.is-drop-below {
+  box-shadow: inset 0 -2px 0 var(--ui-accent);
+}
+
+.ve-layers li.is-drop-inside {
+  outline: 1px solid var(--ui-accent);
+  background: rgba(79, 140, 255, 0.12);
+}
+
+.ve-history summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.ve-history summary h3 {
+  display: inline;
+}
+
+.ve-history summary::before {
+  content: "▸ ";
+  color: var(--ui-muted);
+  font-size: 10px;
+}
+
+.ve-history details[open] summary::before {
+  content: "▾ ";
+}
+
+.ve-history ol {
+  max-height: 220px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.ve-history li button {
+  width: 100%;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ve-history li button:hover {
+  background: var(--ui-raised);
+}
+
+.ve-history li button.is-current {
+  background: rgba(79, 140, 255, 0.22);
+}
+
+.ve-history li button.is-future {
+  color: var(--ui-muted);
+  font-style: italic;
 }
 
 .vector-anims {
