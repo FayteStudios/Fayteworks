@@ -199,6 +199,46 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M6 3h8l4 4v14H6z" />
       <path d="M9 13h6M9 17h6" />
     </>
+  ),
+  history: (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5M12 7v5l3 3" />
+    </>
+  ),
+  artboard: (
+    <>
+      <rect x="6" y="6" width="12" height="12" rx="1" />
+      <path d="M6 2v3M18 2v3M6 19v3M18 19v3M2 6h3M2 18h3M19 6h3M19 18h3" />
+    </>
+  ),
+  transform: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="1" strokeDasharray="3 3" />
+      <path d="M12 8v8M8 12h8" />
+    </>
+  ),
+  path: (
+    <>
+      <path d="M4 18C8 18 8 6 12 6s4 12 8 12" />
+      <circle cx="4" cy="18" r="1.5" />
+      <circle cx="20" cy="18" r="1.5" />
+      <circle cx="12" cy="6" r="1.5" />
+    </>
+  ),
+  sparkle: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z" />,
+  cursor: <path d="M5 3l14 8-6 1.5L10 19z" />,
+  eye: (
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  save: (
+    <>
+      <path d="M5 3h11l3 3v15H5z" />
+      <path d="M8 3v5h7V3M8 21v-7h8v7" />
+    </>
   )
 };
 

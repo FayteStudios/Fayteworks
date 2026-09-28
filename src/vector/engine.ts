@@ -475,6 +475,7 @@ export class DrawingEngine {
   lineDefaults: { stroke: string; strokeWidth: number } = { stroke: "#1d1b18", strokeWidth: 2 };
   fonts: { heading: string; body: string } = { heading: "Georgia, serif", body: "system-ui, sans-serif" };
   private history: { snap: string; label: string }[] = [];
+  private saved: { snap: string; label: string } | null = null;
   private future: { snap: string; label: string }[] = [];
   private lastCommit = { key: "", at: 0 };
   private clipboard: paper.Item[] = [];
@@ -760,6 +761,12 @@ export class DrawingEngine {
   markClean() {
     this.history = [{ snap: this.snapshot(), label: "Opened" }];
     this.future = [];
+    this.saved = null;
+    this.refresh();
+  }
+
+  markSaved() {
+    this.saved = this.history[this.history.length - 1];
     this.refresh();
   }
 
@@ -772,7 +779,8 @@ export class DrawingEngine {
   }
 
   get dirty() {
-    return this.history.length > 1;
+    const last = this.history[this.history.length - 1];
+    return this.saved ? last !== this.saved : this.history.length > 1;
   }
 
   get zoom() {
@@ -896,6 +904,44 @@ export class DrawingEngine {
   private shown(item: paper.Item) {
     for (let i: paper.Item | null = item; i && i !== this.art; i = i.parent) if (!i.visible || i.locked) return false;
     return true;
+  }
+
+  private hollowAt(point: paper.Point, match: (h: paper.HitResult) => boolean): paper.Item | null {
+    const S = this.scope;
+    const items = this.art.getItems({
+      match: (it: paper.Item) =>
+        ((it instanceof S.Path && it.closed && !(it.parent instanceof S.CompoundPath)) || it instanceof S.CompoundPath) &&
+        !it.clipMask &&
+        !it.data?.guide &&
+        (!it.fillColor || it.fillColor.alpha === 0) &&
+        it.bounds.contains(point)
+    });
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (match({ item: it, type: "fill" } as paper.HitResult) && (it as paper.PathItem).contains(point)) return it;
+    }
+    return null;
+  }
+
+  private isAbove(a: paper.Item, b: paper.Item) {
+    const chain = (item: paper.Item) => {
+      const out: paper.Item[] = [];
+      for (let x: paper.Item | null = item; x; x = x.parent) out.unshift(x);
+      return out;
+    };
+    const ca = chain(a);
+    const cb = chain(b);
+    let k = 0;
+    while (k < ca.length && k < cb.length && ca[k] === cb[k]) k++;
+    if (k >= ca.length || k >= cb.length) return ca.length > cb.length;
+    return ca[k].index > cb[k].index;
+  }
+
+  private pick(point: paper.Point, tolerance: number, match: (h: paper.HitResult) => boolean): { item: paper.Item } | null {
+    const hit = this.art.hitTest(point, { fill: true, stroke: true, segments: true, tolerance, match });
+    const hollow = this.hollowAt(point, match);
+    if (!hollow || (hit && (hit.item === hollow || this.isAbove(hit.item, hollow)))) return hit;
+    return { item: hollow };
   }
 
   private topLevel(item: paper.Item): paper.Item {
@@ -1159,7 +1205,7 @@ export class DrawingEngine {
 
   private measureAt(point: paper.Point | null): paper.Rectangle | null {
     if (!point || !this.altDown || this.tool !== "select" || !this.selection.length || this.refAdjust) return null;
-    const hit = this.art.hitTest(point, { fill: true, stroke: true, segments: true, tolerance: 4 / this.scope.view.zoom, match: (h: paper.HitResult) => this.shown(h.item) && this.inScope(h.item) });
+    const hit = this.pick(point, 4 / this.scope.view.zoom, (h: paper.HitResult) => this.shown(h.item) && this.inScope(h.item));
     const target = hit ? this.topLevel(hit.item) : null;
     if (target && !this.selection.includes(target)) return target.bounds;
     return this.isolated ? this.isolated.bounds : this.board.bounds;
@@ -1299,7 +1345,7 @@ export class DrawingEngine {
     if (this.tool !== "select" || this.spaceDown || this.refAdjust) return;
     const rect = this.canvas.getBoundingClientRect();
     const point = this.scope.view.viewToProject(new this.scope.Point(event.clientX - rect.left, event.clientY - rect.top));
-    const hit = this.art.hitTest(point, { fill: true, stroke: true, segments: true, tolerance: 5 / this.scope.view.zoom, match: (h: paper.HitResult) => this.shown(h.item) && this.inScope(h.item) });
+    const hit = this.pick(point, 5 / this.scope.view.zoom, (h: paper.HitResult) => this.shown(h.item) && this.inScope(h.item));
     if (!hit) {
       this.leaveIsolation();
       return;
@@ -1421,7 +1467,7 @@ export class DrawingEngine {
             startBounds = this.selectionBounds();
             return;
           }
-          const hit = this.art.hitTest(e.point, hitOptions({ match: inScopeHit }));
+          const hit = this.pick(e.point, 5 / z, inScopeHit);
           if (hit) {
             const target = double && hit.item instanceof this.scope.PointText ? hit.item : this.topLevel(hit.item);
             if (double && target instanceof this.scope.PointText) {
@@ -1512,7 +1558,7 @@ export class DrawingEngine {
             this.refresh();
             return;
           }
-          const hit = this.art.hitTest(e.point, hitOptions({ match: inScopeHit }));
+          const hit = this.pick(e.point, 5 / z, inScopeHit);
           if (hit) {
             const tpGroup = hit.item.parent?.data?.textPath ? hit.item.parent : null;
             const target = tpGroup ? (tpGroup.children.find((c) => c.data.guide) ?? hit.item) : hit.item.parent instanceof this.scope.CompoundPath ? hit.item.parent : hit.item;
@@ -1585,7 +1631,7 @@ export class DrawingEngine {
             this.refresh(true);
             return;
           }
-          const hit = this.art.hitTest(e.point, hitOptions({ match: inScopeHit }));
+          const hit = this.pick(e.point, 5 / z, inScopeHit);
           const target = hit ? this.topLevel(hit.item) : null;
           if (target && mods(e).shift) this.select(this.selection.includes(target) ? this.selection.filter((i) => i !== target) : [...this.selection, target]);
           else this.select(target ? [target] : []);
@@ -1601,7 +1647,7 @@ export class DrawingEngine {
             mode = "distort";
             return;
           }
-          const hit = this.art.hitTest(e.point, hitOptions({ match: inScopeHit }));
+          const hit = this.pick(e.point, 5 / z, inScopeHit);
           this.select(hit ? [this.topLevel(hit.item)] : []);
           mode = "none";
           return;
