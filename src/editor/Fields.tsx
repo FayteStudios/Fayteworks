@@ -1,7 +1,7 @@
 import { cardLayouts } from "../model/extras";
 import { isCardShell, shellOf } from "../model/shells";
 import { useContext, useState } from "react";
-import { PhotoPicker } from "../media/PhotoPicker";
+import { PicturePicker } from "../media/PhotoPicker";
 import { noteUpload } from "../quality/altText";
 import type { FieldDef } from "../model/fields";
 import { resolveColor, THEME_TOKENS } from "../model/theme";
@@ -82,26 +82,28 @@ function ImageControl({ value, onChange, accept = "image/*", placeholder }: Omit
         onChange={(e) => onChange(e.target.value)}
       />
       <div className="field-row">
-        <label className="btn btn--small">
-          Upload
-          <input
-            type="file"
-            accept={accept}
-            hidden
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (file) {
-                onChange(await putAsset(file));
-                noteUpload(file.name);
-              }
-            }}
-          />
-        </label>
         {accept.startsWith("image") && (
-          <button className="btn btn--small" title="CC0 and public-domain photos, free to use anywhere" onClick={() => setPicking(true)}>
-            Free photos
+          <button className="btn btn--small btn--primary" title="Upload, pick a free photo, or reuse one of your pictures" onClick={() => setPicking(true)}>
+            Choose a picture…
           </button>
+        )}
+        {!accept.startsWith("image") && (
+          <label className="btn btn--small">
+            Upload
+            <input
+              type="file"
+              accept={accept}
+              hidden
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) {
+                  onChange(await putAsset(file));
+                  noteUpload(file.name);
+                }
+              }}
+            />
+          </label>
         )}
         {src && (
           <button className="btn btn--small btn--ghost" onClick={() => onChange("")}>
@@ -109,7 +111,7 @@ function ImageControl({ value, onChange, accept = "image/*", placeholder }: Omit
           </button>
         )}
       </div>
-      {picking && <PhotoPicker onPick={(ref) => onChange(ref)} onClose={() => setPicking(false)} />}
+      {picking && <PicturePicker onPick={(ref) => onChange(ref)} onClose={() => setPicking(false)} />}
     </div>
   );
 }

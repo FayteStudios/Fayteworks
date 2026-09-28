@@ -5772,3 +5772,43 @@ button.topbar-save:hover {
   border-color: var(--ui-accent);
   background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
 }
+
+.picture-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.picture-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 220px;
+  border: 2px dashed var(--ui-border);
+  border-radius: 14px;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.picture-drop span {
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+
+.picture-drop:hover,
+.picture-drop.is-over {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 10%, var(--ui-bg));
+}
+
+.picture-mine button {
+  background: repeating-conic-gradient(#d8d8d8 0 25%, #f4f4f4 0 50%) 0 0 / 16px 16px;
+}
+
+.picture-mine img {
+  object-fit: contain;
+}

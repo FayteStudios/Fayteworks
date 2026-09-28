@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { noteUpload } from "../quality/altText";
-import { putAsset } from "../state/assets";
+import { assetUrl, collectMediaRefs, EDITOR_ONLY_PROPS, getAsset, putAsset, useAssetVersion } from "../state/assets";
 import { useEditor } from "../state/store";
 
 interface Result {
@@ -23,16 +23,154 @@ export function describeFromTitle(title: string): string {
   return t.length < 3 ? "" : t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-export function PhotoPicker({ onPick, onClose }: { onPick: (ref: string) => void; onClose: () => void }) {
-  const { commit } = useEditor();
+type Tab = "upload" | "free" | "mine";
+
+export function PicturePicker({ onPick, onClose, initial = "upload" }: { onPick: (ref: string) => void; onClose: () => void; initial?: Tab }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const [tab, setTab] = useState<Tab>(initial);
+  useEffect(() => ref.current?.showModal(), []);
+  const pick = (value: string) => {
+    onPick(value);
+    onClose();
+  };
+  return (
+    <dialog ref={ref} className="dialog photo-picker" onClose={onClose} onCancel={onClose}>
+      <header className="dialog-header">
+        <h2>Choose a picture</h2>
+        <div className="catalogue-tabs" role="tablist">
+          {(
+            [
+              ["upload", "Upload"],
+              ["free", "Free photos"],
+              ["mine", "My pictures"]
+            ] as [Tab, string][]
+          ).map(([id, label]) => (
+            <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "is-active" : undefined} onClick={() => setTab(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <button className="btn btn--ghost" aria-label="Close" onClick={onClose}>
+          ✕
+        </button>
+      </header>
+      {tab === "upload" ? <UploadTab onPick={pick} /> : tab === "free" ? <FreePhotos onPick={pick} /> : <MyPictures onPick={pick} />}
+    </dialog>
+  );
+}
+
+function UploadTab({ onPick }: { onPick: (ref: string) => void }) {
+  const [over, setOver] = useState(false);
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  async function take(file: File | undefined | null) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("That isn't a picture. Try a PNG, JPG, WebP, GIF or SVG.");
+      return;
+    }
+    const assetRef = await putAsset(file);
+    noteUpload(file.name);
+    onPick(assetRef);
+  }
+  useEffect(() => {
+    const paste = (e: ClipboardEvent) => {
+      const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
+      if (file) {
+        e.preventDefault();
+        void take(file);
+      }
+    };
+    window.addEventListener("paste", paste);
+    return () => window.removeEventListener("paste", paste);
+  });
+  return (
+    <div className="picture-upload">
+      <button
+        className={over ? "picture-drop is-over" : "picture-drop"}
+        onClick={() => input.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          void take(e.dataTransfer.files[0]);
+        }}
+      >
+        <strong>Drop a picture here, or click to choose one</strong>
+        <span>You can also paste a copied picture (Ctrl+V).</span>
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          void take(file);
+        }}
+      />
+      <form
+        className="field-row photo-search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (/^https?:\/\//i.test(url.trim())) onPick(url.trim());
+          else setError("Paste a full web address starting with https://");
+        }}
+      >
+        <input type="url" placeholder="Or paste a picture's web address: https://…" aria-label="Picture address" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button className="btn" disabled={!url.trim()}>
+          Use it
+        </button>
+      </form>
+      {error && <p className="dialog-status dialog-status--error">{error}</p>}
+    </div>
+  );
+}
+
+function MyPictures({ onPick }: { onPick: (ref: string) => void }) {
+  const { state } = useEditor();
+  useAssetVersion();
+  const [refs, setRefs] = useState<string[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    const all = [...collectMediaRefs(state.site, new Set(), EDITOR_ONLY_PROPS)].filter((r) => !r.startsWith("data:"));
+    void Promise.all(all.map(async (r) => ((await getAsset(r))?.type.startsWith("image/") ? r : null))).then((found) => live && setRefs(found.filter((r): r is string => Boolean(r))));
+    return () => {
+      live = false;
+    };
+  }, [state.site]);
+  if (!refs) return <p className="panel-hint">Looking through your site…</p>;
+  if (!refs.length) return <p className="panel-hint">No pictures in this site yet. Upload one, or pick a free photo.</p>;
+  return (
+    <>
+      <p className="field-hint">Every picture already used somewhere in this site.</p>
+      <ul className="photo-grid picture-mine">
+        {refs.map((r) => (
+          <li key={r}>
+            <button onClick={() => onPick(r)} title="Use this picture">
+              <img src={assetUrl(r)} alt="" loading="lazy" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function FreePhotos({ onPick }: { onPick: (ref: string) => void }) {
+  const { commit } = useEditor();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Result[] | null>(null);
   const [page, setPage] = useState(1);
   const [chosen, setChosen] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => ref.current?.showModal(), []);
 
   async function search(q: string, p = 1) {
     if (!q.trim()) return;
@@ -74,7 +212,6 @@ export function PhotoPicker({ onPick, onClose }: { onPick: (ref: string) => void
       });
       noteUpload("", describeFromTitle(r.title));
       onPick(assetRef);
-      onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -83,13 +220,7 @@ export function PhotoPicker({ onPick, onClose }: { onPick: (ref: string) => void
   }
 
   return (
-    <dialog ref={ref} className="dialog photo-picker" onClose={onClose} onCancel={onClose}>
-      <header className="dialog-header">
-        <h2>Free photos</h2>
-        <button className="btn btn--ghost" aria-label="Close" onClick={onClose}>
-          ✕
-        </button>
-      </header>
+    <>
       <form
         className="field-row photo-search"
         onSubmit={(e) => {
@@ -136,6 +267,6 @@ export function PhotoPicker({ onPick, onClose }: { onPick: (ref: string) => void
           More
         </button>
       )}
-    </dialog>
+    </>
   );
 }
