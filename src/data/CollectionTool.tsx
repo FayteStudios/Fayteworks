@@ -1,3 +1,4 @@
+import { appsScriptCode, newWriteKey, saveToSheet } from "./sheetsWrite";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useClientLock } from "../client/clientMode";
 import { askText } from "../editor/askText";
@@ -267,7 +268,12 @@ export function CollectionTool({ collectionId, onClose, startPost }: { collectio
                   </button>
                 </p>
               )}
-              {fetched && collection.items.length > 0 && <p className="room-notice">These items come from {SOURCE_KINDS.find((k) => k.kind === source.kind)?.label}. Changes made here are replaced the next time they're fetched.</p>}
+              {fetched && collection.items.length > 0 && (
+                <p className="room-notice">
+                  These items come from {SOURCE_KINDS.find((k) => k.kind === source.kind)?.label}.{" "}
+                  {source.kind === "sheets" && source.writeUrl ? "Save them to the sheet (under Where) to keep your changes." : "Changes made here are replaced the next time they're fetched."}
+                </p>
+              )}
               {items.length === 0 ? (
                 <div className="room-empty">
                   <p>{q ? `Nothing matches “${query.trim()}”.` : isPosts ? "No posts yet." : "No items yet."}</p>
@@ -841,6 +847,7 @@ function SourceView({ collection, mutate }: { collection: Collection; mutate: (r
             </label>
           )}
           {collection.synced && source.kind !== "manual" && <p className="field-hint">Last fetched {new Date(collection.synced).toLocaleString()}.</p>}
+          {source.kind === "sheets" && source.url && <SheetWriteBack collection={collection} mutate={mutate} busy={busy} run={run} />}
           <div className="room-actions">
             <span>Keep a copy of the items as a spreadsheet.</span>
             <button className="btn" disabled={busy} onClick={() => void saveCopy()}>
@@ -852,6 +859,61 @@ function SourceView({ collection, mutate }: { collection: Collection; mutate: (r
       {message && <p className="field-hint data-ok">{message}</p>}
       {error && <p className="dialog-status dialog-status--error">{error}</p>}
     </section>
+  );
+}
+
+function SheetWriteBack({ collection, mutate, busy, run }: { collection: Collection; mutate: (recipe: (c: Collection) => void, key?: string) => void; busy: boolean; run: (what: string, job: () => Promise<string>) => Promise<unknown> }) {
+  const source = collection.source.kind === "sheets" ? collection.source : null;
+  const [copied, setCopied] = useState(false);
+  if (!source) return null;
+  const key = source.writeKey;
+  return (
+    <details className="sheet-write" open={Boolean(source.writeUrl) || undefined}>
+      <summary>Save changes back to the sheet</summary>
+      {!key ? (
+        <>
+          <p className="field-hint">Google only lets a sheet be written to by a small script that lives inside it. Setting it up takes about two minutes, once.</p>
+          <button className="btn btn--small" onClick={() => mutate((c) => void (c.source.kind === "sheets" && (c.source.writeKey = newWriteKey())))}>
+            Set it up
+          </button>
+        </>
+      ) : (
+        <>
+          <ol className="sheet-write-steps">
+            <li>In the sheet, open Extensions → Apps Script.</li>
+            <li>
+              Replace everything there with this code{" "}
+              <button
+                className="btn btn--small"
+                onClick={() =>
+                  void navigator.clipboard.writeText(appsScriptCode(key)).then(() => {
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1800);
+                  })
+                }
+              >
+                {copied ? "Copied ✓" : "Copy the code"}
+              </button>
+            </li>
+            <li>Press Deploy → New deployment → the gear → Web app. Set “Execute as” to Me and “Who has access” to Anyone, then Deploy (Google asks you to allow it once).</li>
+            <li>Paste the Web app address here:</li>
+          </ol>
+          <input
+            type="url"
+            placeholder="https://script.google.com/macros/s/…/exec"
+            value={source.writeUrl ?? ""}
+            onChange={(e) => mutate((c) => void (c.source.kind === "sheets" && (c.source.writeUrl = e.target.value.trim())), `${collection.id}.writeUrl`)}
+          />
+          <p className="field-hint">The code carries a private key made for this collection, so nobody else can write to your sheet through it.</p>
+          <button className="btn btn--primary" disabled={busy || !source.writeUrl} onClick={() => {
+              if (!collection.items.length && !window.confirm("This collection has no items, so saving would empty the sheet. Save anyway?")) return;
+              void run("save", () => saveToSheet(collection));
+            }}>
+            {busy ? "Saving…" : "Save to the sheet"}
+          </button>
+        </>
+      )}
+    </details>
   );
 }
 

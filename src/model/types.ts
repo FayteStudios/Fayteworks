@@ -272,7 +272,7 @@ export type DataSource =
   | { kind: "manual" }
   | { kind: "csv"; url?: string; file?: string; modified?: number; headers?: string[]; main?: "app" | "file"; savedHash?: string }
   | { kind: "json"; url: string; path?: string }
-  | { kind: "sheets"; url: string }
+  | { kind: "sheets"; url: string; writeUrl?: string; writeKey?: string }
   | { kind: "github"; repo: string; path: string; branch?: string }
   | { kind: "airtable"; base: string; table: string; view?: string }
   | { kind: "notion"; database: string }
