@@ -8,7 +8,7 @@ import { exportPaint, importPaint, installPaint, onTileReady, type PaintExport, 
 import { mapPath, perspectiveMap, prepareForBend, puckerBloat, roughen, twistMap, warpMap, zigzag, type EffectKind, type EffectParams } from "./pathEffects";
 import { layoutBlend, layoutRepeat, layoutSymbols, type Blend, type Repeat } from "./live";
 
-export type Tool = "select" | "direct" | "pen" | "curvature" | "pencil" | "scissors" | "knife" | "eraser" | "rect" | "ellipse" | "polygon" | "star" | "shape" | "line" | "arc" | "spiral" | "text" | "eyedropper" | "gradient" | "blob" | "calligraphy" | "distort" | "hand";
+export type Tool = "select" | "direct" | "pen" | "curvature" | "pencil" | "scissors" | "knife" | "eraser" | "rect" | "ellipse" | "polygon" | "star" | "shape" | "line" | "arc" | "spiral" | "text" | "eyedropper" | "gradient" | "blob" | "calligraphy" | "distort" | "builder" | "hand";
 export type BooleanOp = "unite" | "subtract" | "intersect" | "exclude";
 export type AlignOp = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
 export type ShapeKind = "triangle" | "arrow" | "bubble" | "heart" | "cloud" | "gear" | "donut" | "pie";
@@ -662,6 +662,7 @@ export class DrawingEngine {
     if (key !== "simplify") this.simplifyBase = null;
     if (!key.startsWith("fx-")) this.effectBase = null;
     if (key !== "distort") this.distortState = null;
+    this.builder = null;
     this.colorCache = null;
     const now = Date.now();
     const snap = this.snapshot();
@@ -964,6 +965,7 @@ export class DrawingEngine {
     if (this.tempStroke) this.ui.addChild(this.tempStroke);
     if (this.tool === "gradient") this.drawGradientHandles(z);
     if (this.tool === "distort") this.drawDistortHandles(z);
+    if (this.tool === "builder") this.drawBuilder(z);
     if (this.options.mirror !== "off") {
       const b = this.board.bounds;
       const vb = this.scope.view.bounds;
@@ -1229,7 +1231,7 @@ export class DrawingEngine {
   private setupTool() {
     const tool = new this.scope.Tool();
     tool.minDistance = 0;
-    let mode: "none" | "move" | "scale" | "rotate" | "marquee" | "pan" | "shape" | "node" | "handle" | "bend" | "pencil" | "pen-drag" | "guide" | "knife" | "gradient" | "distort" = "none";
+    let mode: "none" | "move" | "scale" | "rotate" | "marquee" | "pan" | "shape" | "node" | "handle" | "bend" | "pencil" | "pen-drag" | "guide" | "knife" | "gradient" | "distort" | "builder" = "none";
     let start: paper.Point;
     let last: paper.Point;
     let handleName = "";
@@ -1245,6 +1247,16 @@ export class DrawingEngine {
     let guideDrag: { axis: "x" | "y"; index: number } | null = null;
     let gradDrag: string | null = null;
     let corner = -1;
+    let builderRemove = false;
+    const touchBuilder = (from: paper.Point, to: paper.Point) => {
+      const b = this.builder;
+      if (!b) return;
+      const steps = Math.max(1, Math.ceil(from.getDistance(to) / (3 / this.scope.view.zoom)));
+      for (let k = 0; k <= steps; k++) {
+        const i = this.builderPieceAt(from.add(to.subtract(from).multiply(k / steps)));
+        if (i >= 0) b.touched.add(i);
+      }
+    };
     let grabbed: { segment: paper.Segment; from: paper.Point } | null = null;
     const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
     const along = (g: { origin: paper.Point; destination: paper.Point }, point: paper.Point) => {
@@ -1428,6 +1440,23 @@ export class DrawingEngine {
             if (!mods(e).shift) this.select([]);
             mode = "marquee";
           }
+          return;
+        }
+        case "builder": {
+          const b = this.ensureBuilder();
+          const at = b ? this.builderPieceAt(e.point) : -1;
+          if (b && at >= 0) {
+            b.touched = new Set([at]);
+            builderRemove = mods(e).alt;
+            mode = "builder";
+            this.refresh(true);
+            return;
+          }
+          const hit = this.art.hitTest(e.point, hitOptions({ match: inScopeHit }));
+          const target = hit ? this.topLevel(hit.item) : null;
+          if (target && mods(e).shift) this.select(this.selection.includes(target) ? this.selection.filter((i) => i !== target) : [...this.selection, target]);
+          else this.select(target ? [target] : []);
+          mode = "none";
           return;
         }
         case "distort": {
@@ -1670,6 +1699,12 @@ export class DrawingEngine {
         this.refresh(true);
         return;
       }
+      if (mode === "builder") {
+        touchBuilder(last, e.point);
+        last = e.point;
+        this.refresh(true);
+        return;
+      }
       if (mode === "distort" && this.distortState && corner >= 0) {
         const quad = this.distortState.quad;
         const to = this.snap(e.point);
@@ -1822,6 +1857,10 @@ export class DrawingEngine {
         this.refresh();
         return;
       }
+      if (finished === "builder") {
+        this.applyBuilder(builderRemove);
+        return;
+      }
       if (finished === "distort") {
         corner = -1;
         if (changed) this.commit("distort", "Distort");
@@ -1906,6 +1945,15 @@ export class DrawingEngine {
       this.pointer = e.point;
       this.altDown = mods(e).alt;
       if (this.tool === "select") this.updateMeasure();
+      if (this.tool === "builder") {
+        const b = this.ensureBuilder();
+        const at = b ? this.builderPieceAt(e.point) : -1;
+        if (b && at !== b.hover) {
+          b.hover = at;
+          this.refresh(true);
+        }
+        return;
+      }
       if (this.tool === "curvature" && this.penPath) {
         this.previewPath?.remove();
         const ghost = this.penPath.clone({ insert: false }) as paper.Path;
@@ -3000,10 +3048,7 @@ export class DrawingEngine {
     this.commit("", "Erase");
   }
 
-  divide() {
-    if (this.refAdjust) return;
-    const shapes = this.selection.filter((i): i is paper.PathItem => i instanceof this.scope.PathItem).sort((a, b) => a.index - b.index);
-    if (shapes.length < 2) return;
+  private divisionPieces(shapes: paper.PathItem[]): { shape: paper.PathItem; from: paper.Item }[] {
     let pieces: { shape: paper.PathItem; from: paper.Item }[] = [];
     for (const shape of shapes) {
       const next: typeof pieces = [];
@@ -3017,10 +3062,88 @@ export class DrawingEngine {
       next.push({ shape: rest, from: shape });
       pieces = next;
     }
+    return pieces.flatMap((p) => this.splitDisjoint(p.shape, p.from).map((part) => ({ shape: part, from: p.from })));
+  }
+
+  private builder: { key: paper.Item[]; pieces: { shape: paper.PathItem; from: paper.Item }[]; touched: Set<number>; hover: number } | null = null;
+
+  private ensureBuilder() {
+    const shapes = this.selection.filter((i): i is paper.PathItem => i instanceof this.scope.PathItem).sort((a, b) => a.index - b.index);
+    if (!shapes.length) {
+      this.builder = null;
+      return null;
+    }
+    if (this.builder && sameItems(this.builder.key, shapes)) return this.builder;
+    this.builder = { key: shapes, pieces: this.divisionPieces(shapes), touched: new Set(), hover: -1 };
+    return this.builder;
+  }
+
+  private builderPieceAt(point: paper.Point): number {
+    const b = this.builder;
+    if (!b) return -1;
+    for (let i = b.pieces.length - 1; i >= 0; i--) if (b.pieces[i].shape.contains(point)) return i;
+    return -1;
+  }
+
+  private drawBuilder(z: number) {
+    const b = this.builder;
+    if (!b || !sameItems(b.key, this.selection.filter((i) => i instanceof this.scope.PathItem))) return;
+    b.pieces.forEach((p, i) => {
+      const ghost = p.shape.clone({ insert: false }) as paper.PathItem;
+      ghost.fillColor = b.touched.has(i) ? new this.scope.Color(0.31, 0.55, 1, 0.45) : i === b.hover ? new this.scope.Color(0.31, 0.55, 1, 0.22) : null;
+      ghost.strokeColor = new this.scope.Color(ACCENT);
+      ghost.strokeWidth = 1 / z;
+      ghost.dashArray = [4 / z, 3 / z];
+      ghost.opacity = 1;
+      ghost.blendMode = "normal";
+      ghost.data = {};
+      this.ui.addChild(ghost);
+    });
+  }
+
+  private applyBuilder(remove: boolean) {
+    const b = this.builder;
+    if (!b || !b.touched.size) return;
+    const touched = [...b.touched].map((i) => b.pieces[i]);
+    const rest = b.pieces.filter((_, i) => !b.touched.has(i));
+    const results: paper.Item[] = [];
+    const top = b.key[b.key.length - 1];
+    for (const orig of b.key) {
+      const mine = rest.filter((p) => p.from === orig).map((p) => p.shape);
+      if (!mine.length) continue;
+      let joined = mine[0];
+      for (const next of mine.slice(1)) joined = joined.unite(next, { insert: false }) as paper.PathItem;
+      this.styled(joined, orig);
+      joined.name = orig.name;
+      results.push(joined);
+    }
+    if (!remove) {
+      let merged = touched[0].shape;
+      for (const t of touched.slice(1)) merged = merged.unite(t.shape, { insert: false }) as paper.PathItem;
+      this.styled(merged, touched[0].from);
+      merged.name = results.some((r) => r.name === touched[0].from.name) ? "" : touched[0].from.name;
+      results.push(merged);
+    }
+    let anchor: paper.Item = top;
+    for (const r of results) {
+      r.insertAbove(anchor);
+      anchor = r;
+    }
+    for (const orig of b.key) orig.remove();
+    this.builder = null;
+    this.select(results);
+    this.commit("", remove ? "Shape builder: remove" : "Shape builder: merge");
+  }
+
+  divide() {
+    if (this.refAdjust) return;
+    const shapes = this.selection.filter((i): i is paper.PathItem => i instanceof this.scope.PathItem).sort((a, b) => a.index - b.index);
+    if (shapes.length < 2) return;
+    const parts = this.divisionPieces(shapes);
     const top = shapes[shapes.length - 1];
     const group = new this.scope.Group({ insert: false });
     group.insertAbove(top);
-    for (const p of pieces) for (const part of this.splitDisjoint(p.shape, p.from)) group.addChild(part);
+    for (const p of parts) group.addChild(p.shape);
     for (const shape of shapes) shape.remove();
     if (!group.children.length) {
       group.remove();
