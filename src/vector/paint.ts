@@ -180,6 +180,11 @@ export function installPaint(scope: paper.PaperScope) {
 
   proto.draw = function (this: Raw, ctx, ...rest) {
     const data = this._data;
+    if (data && (data as { operand?: boolean }).operand) {
+      const dummy = document.createElement("canvas").getContext("2d")!;
+      dummy.setTransform(ctx.getTransform());
+      return prev.call(this, dummy, ...rest);
+    }
     if (data?.softMask && this._visible && this._opacity > 0) return drawSoftMask.call(this, ctx, rest);
     const align = data?.strokeAlign && data.strokeAlign !== "center" ? data.strokeAlign : null;
     const pattern = data?.pattern;
@@ -261,6 +266,10 @@ export function exportPaint(doc: XMLDocument, root: Element) {
   for (const el of Array.from(root.querySelectorAll("[data-paper-data]"))) {
     const data = parseData(el) as { strokeAlign?: StrokeAlign; pattern?: PatternFill; paint?: PaintExport; softMask?: boolean } | null;
     if (!data) continue;
+    if ((data as { operand?: boolean }).operand) {
+      el.setAttribute("visibility", "hidden");
+      continue;
+    }
     if (data.softMask) {
       const src = Array.from(el.children).find((c) => (parseData(c) as { maskSource?: boolean } | null)?.maskSource);
       if (!src) continue;

@@ -6,7 +6,7 @@ import { layoutEnds, type Ends } from "./ends";
 import { outlineText } from "./outlines";
 import { exportPaint, importPaint, installPaint, onTileReady, type PaintExport, type PatternFill, type StrokeAlign } from "./paint";
 import { mapPath, perspectiveMap, prepareForBend, puckerBloat, roughen, twistMap, warpMap, zigzag, type EffectKind, type EffectParams } from "./pathEffects";
-import { layoutBlend, layoutRepeat, layoutSymbols, type Blend, type Repeat } from "./live";
+import { layoutBlend, layoutBoolean, layoutRepeat, layoutSymbols, type Blend, type Repeat } from "./live";
 import { outlineData, profilePoints, widthAt, widthOutline, type WidthPoint, type WidthProfile } from "./strokes";
 
 export type Tool = "select" | "direct" | "pen" | "curvature" | "pencil" | "scissors" | "knife" | "eraser" | "rect" | "ellipse" | "polygon" | "star" | "shape" | "line" | "arc" | "spiral" | "text" | "eyedropper" | "gradient" | "blob" | "calligraphy" | "distort" | "builder" | "width" | "hand";
@@ -445,7 +445,8 @@ export class DrawingEngine {
     blob: 16,
     nib: 10,
     nibAngle: 35,
-    mirror: "off" as "off" | "v" | "h" | "both"
+    mirror: "off" as "off" | "v" | "h" | "both",
+    liveBoolean: true
   };
   tile: { tile: string; tileW: number; tileH: number } | null = null;
   private stopTiles: () => void = () => undefined;
@@ -544,8 +545,8 @@ export class DrawingEngine {
     }
     for (const group of this.textPathGroups()) this.layoutTextPath(group);
     for (const group of this.endsGroups()) layoutEnds(this.scope, group);
-    for (const item of this.art.getItems({ recursive: true, match: (i: paper.Item) => Boolean(i.data?.maskSource || i.data?.paint) })) {
-      if (item.data.maskSource) item.visible = true;
+    for (const item of this.art.getItems({ recursive: true, match: (i: paper.Item) => Boolean(i.data?.maskSource || i.data?.paint || i.data?.operand) })) {
+      if (item.data.maskSource || item.data.operand) item.visible = true;
       delete item.data.paint;
     }
     this.layoutLive();
@@ -1022,6 +1023,7 @@ export class DrawingEngine {
       delete item.data?.pattern;
       delete item.data?.strokeAlign;
       delete item.data?.widths;
+      delete item.data?.operand;
       delete item.data?.softMask;
       if (item instanceof this.scope.Group && item.clipped) item.clipped = false;
       if (item.clipMask) item.clipMask = false;
@@ -3753,18 +3755,20 @@ export class DrawingEngine {
   private layoutLive() {
     layoutSymbols(this.scope, this.art);
     for (const g of this.art.getItems({ recursive: true, class: this.scope.Group, match: (i: paper.Item) => Boolean(i.data?.repeat) }) as paper.Group[]) layoutRepeat(this.scope, g);
+    for (const g of this.art.getItems({ recursive: true, class: this.scope.Group, match: (i: paper.Item) => Boolean(i.data?.boolean) }) as paper.Group[]) layoutBoolean(this.scope, g);
     for (const g of this.art.getItems({ recursive: true, class: this.scope.Group, match: (i: paper.Item) => Boolean(i.data?.blend) }) as paper.Group[]) layoutBlend(this.scope, g);
     for (const t of this.art.getItems({ recursive: true, class: this.scope.PointText, match: (i: paper.Item) => Boolean(i.data?.wrap) }) as paper.PointText[]) this.wrapText(t);
   }
 
   private liveOwner(item: paper.Item | undefined): paper.Group | null {
-    for (let i: paper.Item | null | undefined = item; i && i !== this.art; i = i.parent) if (i instanceof this.scope.Group && (i.data?.repeat || i.data?.blend)) return i;
+    for (let i: paper.Item | null | undefined = item; i && i !== this.art; i = i.parent) if (i instanceof this.scope.Group && (i.data?.repeat || i.data?.blend || i.data?.boolean)) return i;
     return null;
   }
 
-  liveInfo(): { repeat?: Repeat; blend?: Blend; symbol?: "master" | "copy" } | null {
+  liveInfo(): { repeat?: Repeat; blend?: Blend; boolean?: BooleanOp; symbol?: "master" | "copy" } | null {
     if (this.selection.length !== 1) return null;
     const item = this.selection[0];
+    if (item.data?.boolean) return { boolean: item.data.boolean.op as BooleanOp };
     if (item.data?.repeat) return { repeat: { ...(item.data.repeat as Repeat) } };
     if (item.data?.blend) return { blend: { ...(item.data.blend as Blend) } };
     if (item.data?.instanceOf) return { symbol: "copy" };
@@ -3821,13 +3825,19 @@ export class DrawingEngine {
 
   private unwrapLive(expand: boolean) {
     const group = this.selection[0];
-    if (!(group instanceof this.scope.Group) || !(group.data?.repeat || group.data?.blend)) return;
+    if (!(group instanceof this.scope.Group) || !(group.data?.repeat || group.data?.blend || group.data?.boolean)) return;
+    const isBoolean = Boolean(group.data.boolean);
     const kids = [...group.children];
     for (const kid of kids) {
+      if (isBoolean && expand && kid.data.operand) {
+        kid.remove();
+        continue;
+      }
       if (kid.data.gen && !expand) {
         kid.remove();
         continue;
       }
+      delete kid.data.operand;
       delete kid.data.gen;
       delete kid.data.source;
       delete kid.data.along;
@@ -3835,6 +3845,18 @@ export class DrawingEngine {
     }
     delete group.data.repeat;
     delete group.data.blend;
+    delete group.data.boolean;
+    if (expand && isBoolean) {
+      const result = group.firstChild;
+      if (result) {
+        result.insertAbove(group);
+        result.name = group.name;
+        group.remove();
+        this.select([result]);
+      }
+      this.commit("", "Flatten");
+      return;
+    }
     if (expand) {
       this.select([group]);
       this.commit("", "Expand");
@@ -4296,10 +4318,28 @@ export class DrawingEngine {
     return false;
   }
 
+  setBooleanOp(op: BooleanOp) {
+    const group = this.selection[0];
+    if (!group?.data?.boolean) return;
+    group.data.boolean = { op };
+    this.commit("", "Combine shapes");
+  }
+
   boolean(op: BooleanOp) {
     if (this.refAdjust) return;
     const shapes = [...this.selection].filter((i): i is paper.PathItem => i instanceof this.scope.PathItem).sort((a, b) => a.index - b.index);
     if (shapes.length < 2) return;
+    if (this.options.liveBoolean) {
+      const group = new this.scope.Group({ insert: false });
+      group.insertAbove(shapes[shapes.length - 1]);
+      group.addChildren(shapes);
+      for (const s of shapes) s.data.operand = true;
+      group.data.boolean = { op };
+      layoutBoolean(this.scope, group);
+      this.select([group]);
+      this.commit("", op[0].toUpperCase() + op.slice(1));
+      return;
+    }
     const [base, ...rest] = shapes;
     let result: paper.PathItem = base;
     for (const other of rest) {

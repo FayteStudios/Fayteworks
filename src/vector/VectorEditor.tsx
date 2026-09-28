@@ -1166,6 +1166,26 @@ export default function VectorEditor({
                   </div>
                 </>
               )}
+              {live?.boolean && (
+                <>
+                  <div className="ve-row ve-segmented">
+                    {(["unite", "subtract", "intersect", "exclude"] as BooleanOp[]).map((op) => (
+                      <button key={op} className={live.boolean === op ? "is-active" : undefined} onClick={() => engine.setBooleanOp(op)}>
+                        {op[0].toUpperCase() + op.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="ve-note">Double-click to work inside and move the original shapes; the result follows.</p>
+                  <div className="ve-buttons">
+                    <button title="Keep just the result, as an ordinary shape" onClick={() => engine.expandLive()}>
+                      Flatten
+                    </button>
+                    <button title="Bring back the original shapes" onClick={() => engine.releaseLive()}>
+                      Release
+                    </button>
+                  </div>
+                </>
+              )}
               {live?.blend && <NumberField label="Steps" min={1} value={live.blend.steps} onChange={(steps) => engine.setBlend(steps)} />}
               {(live?.repeat || live?.blend) && (
                 <>
@@ -1450,6 +1470,10 @@ export default function VectorEditor({
                 </label>
               </div>
               <h4>Combine shapes</h4>
+              <label className="ve-check" title="The original shapes stay underneath: move or edit them later and the result follows">
+                <input type="checkbox" checked={engine!.options.liveBoolean} onChange={(e) => ((engine!.options.liveBoolean = e.target.checked), rerender())} />
+                Keep the shapes editable
+              </label>
               <div className="ve-buttons">
                 {(
                   [

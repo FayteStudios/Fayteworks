@@ -168,3 +168,27 @@ export function layoutSymbols(scope: paper.PaperScope, art: paper.Item) {
     master.data.symbolAt = [at.x, at.y];
   }
 }
+
+export type BooleanKind = "unite" | "subtract" | "intersect" | "exclude";
+
+export function layoutBoolean(scope: paper.PaperScope, group: paper.Group) {
+  const op = (group.data.boolean as { op: BooleanKind }).op;
+  for (const kid of [...group.children]) if (kid.data.gen) kid.remove();
+  const operands = group.children.filter((c): c is paper.PathItem => Boolean(c.data.operand) && c instanceof scope.PathItem);
+  if (operands.length < 2) return;
+  let result: paper.PathItem = operands[0].clone({ insert: false }) as paper.PathItem;
+  for (const next of operands.slice(1)) result = result[op](next, { insert: false }) as paper.PathItem;
+  const base = operands[0];
+  const source = new scope.Path({ insert: false });
+  source.style = base.style;
+  result.style = source.style;
+  result.fillRule = base.fillRule;
+  result.opacity = base.opacity;
+  result.blendMode = base.blendMode;
+  const data = JSON.parse(JSON.stringify(base.data ?? {}));
+  delete data.operand;
+  result.data = { ...data, gen: true };
+  for (const part of result.getItems({ recursive: true })) delete part.data.operand;
+  result.name = "";
+  group.addChild(result);
+}
