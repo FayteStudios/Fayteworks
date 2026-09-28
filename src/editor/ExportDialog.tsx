@@ -12,6 +12,7 @@ import { slugify } from "../model/factory";
 import { themeGoogleFonts } from "../model/fonts";
 import { desktop, type ProjectConfig, type PublishService } from "../platform/desktop";
 import { useEditor } from "../state/store";
+import { siCloudflare, siGithub, siNetlify } from "simple-icons";
 import { openTellPeople } from "../social/TellPeopleDialog";
 
 type Status = { kind: "idle" } | { kind: "working"; message: string } | { kind: "done"; message: string; url?: string } | { kind: "error"; message: string };
@@ -70,15 +71,34 @@ export function TokenField({ service, connected, onChange, label, helpUrl }: { s
   );
 }
 
+const STEPS = ["Where", "Check", "Options", "Publish"] as const;
+const LAST_TARGET = "fayteworks:publish-target";
+
+interface TargetCard {
+  id: Target;
+  title: string;
+  what: string;
+  icon?: { path: string; hex: string };
+  glyph?: string;
+  online: boolean;
+  available: boolean;
+}
+
+function readLastTarget(): Target | null {
+  try {
+    return (localStorage.getItem(LAST_TARGET) as Target | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function ExportDialog({ onClose }: { onClose: () => void }) {
   const { state, derive } = useEditor();
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const dialogRef = useRef<HTMLDialogElement>(null);
   const site = state.site;
-  const checkCounts = useMemo(() => {
-    const found = checkSite(site);
-    return { total: found.length, fix: found.filter((i) => i.severity === "fix").length };
-  }, [site]);
+  const issues = useMemo(() => checkSite(site), [site]);
+  const checkCounts = { total: issues.length, fix: issues.filter((i) => i.severity === "fix").length };
   const googleFonts = [...new Map(allThemes(site).flatMap(themeGoogleFonts).map((f) => [f.family, f])).values()];
   const [fontHosting, setFontHosting] = useState<FontHosting>("embed");
   const [optimise, setOptimise] = useState(true);
@@ -88,6 +108,29 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const [cfProject, setCfProject] = useState(slugify(site.name));
   const [netlifyName, setNetlifyName] = useState("");
   const [repo, setRepo] = useState(slugify(site.name));
+  const [step, setStep] = useState(0);
+
+  const cards: TargetCard[] = desktop
+    ? [
+        { id: "netlify", title: "Netlify", what: "Free hosting with its own web address. Updates in one click.", icon: siNetlify, online: true, available: true },
+        { id: "github", title: "GitHub Pages", what: "Free hosting from a GitHub repository.", icon: siGithub, online: true, available: true },
+        { id: "cloudflare", title: "Cloudflare Pages", what: "Free, fast hosting on Cloudflare's network.", icon: siCloudflare, online: true, available: true },
+        { id: "project", title: "Project folder", what: "Save the finished site next to your project, to upload yourself.", glyph: "📁", online: false, available: true },
+        { id: "choose", title: "Another folder…", what: "Pick any folder to save the finished site into.", glyph: "🗂", online: false, available: true },
+        { id: "zip", title: "Download a .zip", what: "One file to upload anywhere (Netlify Drop, your host's file manager…).", glyph: "⤓", online: false, available: true }
+      ]
+    : [
+        { id: "zip", title: "Download a .zip", what: "One file to upload anywhere (Netlify Drop, your host's file manager…).", glyph: "⤓", online: false, available: true },
+        { id: "browser-folder", title: "Save to a folder", what: "Write the finished site straight into a folder on this computer.", glyph: "📁", online: false, available: canWriteToFolder() },
+        { id: "netlify", title: "Netlify", what: "One-click publishing is in the desktop app.", icon: siNetlify, online: true, available: false },
+        { id: "github", title: "GitHub Pages", what: "One-click publishing is in the desktop app.", icon: siGithub, online: true, available: false },
+        { id: "cloudflare", title: "Cloudflare Pages", what: "One-click publishing is in the desktop app.", icon: siCloudflare, online: true, available: false }
+      ];
+  const [target, setTarget] = useState<Target>(() => {
+    const last = readLastTarget();
+    return last && cards.some((c) => c.id === last && c.available) ? last : cards[desktop ? 3 : 0].id;
+  });
+  const card = cards.find((c) => c.id === target) ?? cards[0];
 
   const refreshConnections = () => {
     if (!desktop) return;
@@ -164,7 +207,11 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         setStatus({ kind: "done", message: `Wrote ${summary} into “${folder}”.${warning}` });
       } else if (target === "project" || target === "choose") {
         const folder = await desktop!.exportSite(result.files, target === "choose");
-        if (!folder) return setStatus({ kind: "idle" });
+        if (!folder) {
+          setStatus({ kind: "idle" });
+          setStep(2);
+          return;
+        }
         setStatus({ kind: "done", message: `Wrote ${summary} into ${folder}.${warning}`, url: `folder:${folder}` });
       } else if (target === "netlify") {
         setStatus({ kind: "working", message: "Publishing to Netlify…" });
@@ -194,6 +241,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         setStatus({ kind: "idle" });
+        setStep(2);
         return;
       }
       console.error(error);
@@ -202,198 +250,262 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   }
 
   const working = status.kind === "working";
-  const missingDescriptions = site.pages.filter((p) => !p.seo.description.trim()).map((p) => p.title);
+  const borrowed = referenceSprites(site);
+  const blocked = card.online && borrowed.length > 0;
+  const tokenReady = !card.online || connected[card.id as "netlify" | "github" | "cloudflare"];
+  const targetReady = card.id === "github" ? Boolean(slugify(repo)) : card.id === "cloudflare" ? Boolean(cfAccount.trim() && slugify(cfProject)) : true;
+  const lastUrl = (id: Target) => (id === "netlify" ? config.netlify?.url : id === "github" ? config.github?.url : id === "cloudflare" ? config.cloudflare?.url : undefined);
+  const actionLabel: Record<Target, string> = {
+    netlify: config.netlify?.siteId ? "Publish the update" : "Publish to Netlify",
+    github: "Publish to GitHub Pages",
+    cloudflare: "Publish to Cloudflare",
+    project: "Save to the project folder",
+    choose: "Choose a folder and save",
+    zip: "Download the .zip",
+    "browser-folder": "Choose a folder and save"
+  };
 
   function openResult(url: string) {
     if (url.startsWith("folder:")) void desktop?.showFolder(url.slice("folder:".length));
     else void desktop?.openExternal(url);
   }
 
+  function go() {
+    try {
+      localStorage.setItem(LAST_TARGET, target);
+    } catch {
+      /* private mode */
+    }
+    setStep(3);
+    void run(target);
+  }
+
   return (
-    <dialog ref={dialogRef} className="dialog" onClose={onClose} onCancel={onClose}>
+    <dialog ref={dialogRef} className="dialog publish-flow" onClose={onClose} onCancel={onClose}>
       <header className="dialog-header">
-        <h2>{desktop ? "Export & publish" : "Export website"}</h2>
+        <h2>Publish</h2>
+        <ol className="publish-steps">
+          {STEPS.map((label, i) => (
+            <li key={label} className={i === step ? "is-current" : i < step ? "is-done" : undefined}>
+              <button disabled={working || i > step || (step === 3 && status.kind === "done")} onClick={() => setStep(i)}>
+                <span>{i < step ? "✓" : i + 1}</span> {label}
+              </button>
+            </li>
+          ))}
+        </ol>
         <button className="btn btn--ghost" aria-label="Close" onClick={onClose}>
           ✕
         </button>
       </header>
 
-      <p className="dialog-lead">
-        Creates plain HTML and CSS: one folder per page, with images in <code>assets/</code>. No build step, no
-        runtime, nothing to pay for.{" "}
-        <button className="link-button" onClick={() => (onClose(), openGuide("go-online"))}>
-          New to this? Step-by-step guide →
-        </button>
-      </p>
-
-      {checkCounts.total > 0 && (
-        <p className={`dialog-note prepublish-banner${checkCounts.fix ? " has-fixes" : ""}`}>
-          {checkCounts.fix ? `${checkCounts.fix} thing${checkCounts.fix === 1 ? "" : "s"} to fix` : "Nothing to fix"}
-          {checkCounts.total - checkCounts.fix ? `, ${checkCounts.total - checkCounts.fix} to consider` : ""} before publishing.{" "}
-          <button className="link-button" onClick={openPrepublish}>
-            Review →
-          </button>
-        </p>
-      )}
-      {missingDescriptions.length > 0 && (
-        <p className="dialog-note">
-          Tip: {missingDescriptions.join(", ")} {missingDescriptions.length === 1 ? "has" : "have"} no search description.
-          Add one in the page's settings (⋯ next to it under Pages).
-        </p>
-      )}
-
-      {googleFonts.length > 0 && (
-        <fieldset className="dialog-fonts">
-          <legend>Fonts ({googleFonts.map((f) => f.family).join(", ")})</legend>
-          <label>
-            <input type="radio" checked={fontHosting === "embed"} onChange={() => setFontHosting("embed")} />
-            Include the font files in the site <span>(recommended: private, works offline)</span>
-          </label>
-          <label>
-            <input type="radio" checked={fontHosting === "link"} onChange={() => setFontHosting("link")} />
-            Load them from Google Fonts <span>(smaller download)</span>
-          </label>
-        </fieldset>
-      )}
-
-      <label className="dialog-option">
-        <input type="checkbox" checked={optimise} onChange={(e) => setOptimise(e.target.checked)} />
-        Optimise pictures <span>(WebP, at most {2400}px wide: much faster pages)</span>
-      </label>
-
-      <div className="dialog-actions">
-        {desktop ? (
-          <>
-            <button className="btn btn--primary" disabled={working} onClick={() => run("project")}>
-              Export to project folder
+      {step === 0 && (
+        <>
+          <p className="dialog-lead">
+            Where should the site go? It's built as plain HTML and CSS, with nothing to pay for.{" "}
+            <button className="link-button" onClick={() => (onClose(), openGuide("go-online"))}>
+              New to this? Step-by-step guide →
             </button>
-            <button className="btn" disabled={working} onClick={() => run("choose")}>
-              Export to…
-            </button>
-            <button className="btn" disabled={working} onClick={() => run("zip")}>
-              Download .zip
-            </button>
-          </>
-        ) : (
-          <>
-            <button className="btn btn--primary" disabled={working} onClick={() => run("zip")}>
-              Download .zip
-            </button>
-            {canWriteToFolder() && (
-              <button className="btn" disabled={working} onClick={() => run("browser-folder")}>
-                Save to folder…
+          </p>
+          <div className="publish-cards" role="radiogroup" aria-label="Where to publish">
+            {cards.map((c) => (
+              <button key={c.id} role="radio" aria-checked={target === c.id} disabled={!c.available} className={target === c.id ? "publish-card is-active" : "publish-card"} onClick={() => setTarget(c.id)}>
+                <span className="publish-card-icon" aria-hidden>
+                  {c.icon ? (
+                    <svg viewBox="0 0 24 24" width="22" height="22">
+                      <path d={c.icon.path} fill={`#${c.icon.hex}`} />
+                    </svg>
+                  ) : (
+                    c.glyph
+                  )}
+                </span>
+                <span className="publish-card-text">
+                  <strong>{c.title}</strong>
+                  <small>{c.what}</small>
+                  {desktop && c.online && <small className={connected[c.id as "netlify"] ? "publish-card-ok" : "publish-card-need"}>{connected[c.id as "netlify"] ? "✓ Connected" : "Needs a token (next steps show how)"}</small>}
+                  {lastUrl(c.id) && <small className="publish-card-url">Last published: {lastUrl(c.id)}</small>}
+                </span>
               </button>
-            )}
-          </>
-        )}
-      </div>
+            ))}
+          </div>
+          <details className="dialog-help">
+            <summary>Where can I host this for free?</summary>
+            <ul>
+              <li>
+                <strong>Netlify Drop</strong>: drag the unzipped folder onto app.netlify.com/drop.
+              </li>
+              <li>
+                <strong>Cloudflare Pages</strong>: create a project and choose “Upload assets”{desktop ? " (or publish from here)" : ""}.
+              </li>
+              <li>
+                <strong>GitHub Pages</strong>: commit the files to a repository and enable Pages in its settings.
+              </li>
+            </ul>
+            <p>
+              To check the site locally, serve the folder (for example <code>npx serve</code>) rather than double-clicking <code>index.html</code>, because page links use clean folder URLs.
+            </p>
+          </details>
+          <div className="publish-nav">
+            <span />
+            <button className="btn btn--primary" onClick={() => setStep(1)}>
+              Next: a quick check →
+            </button>
+          </div>
+        </>
+      )}
 
-      {desktop && (
-        <div className="publish">
-          <h3 className="panel-heading">Publish online</h3>
-          <section className="publish-target">
-            <header>
-              <strong>Netlify</strong>
-              {config.netlify?.url && (
-                <button className="link-button" onClick={() => openResult(config.netlify!.url!)}>
-                  {config.netlify.url}
-                </button>
-              )}
-            </header>
-            <TokenField service="netlify" connected={connected.netlify} onChange={refreshConnections} />
-            {connected.netlify && (
-              <div className="publish-row">
-                {!config.netlify?.siteId && (
-                  <input type="text" placeholder="Site name (optional, e.g. my-portfolio)" value={netlifyName} onChange={(e) => setNetlifyName(e.target.value)} />
+      {step === 1 && (
+        <>
+          <div className={`publish-check${checkCounts.fix ? " has-fixes" : checkCounts.total ? " has-notes" : " is-clear"}`}>
+            <strong>{checkCounts.total === 0 ? "✓ Everything looks good." : checkCounts.fix ? `${checkCounts.fix} thing${checkCounts.fix === 1 ? "" : "s"} to fix` : "Nothing to fix"}</strong>
+            {checkCounts.total - checkCounts.fix > 0 && <span>{`${checkCounts.total - checkCounts.fix} thing${checkCounts.total - checkCounts.fix === 1 ? "" : "s"} worth a look`}</span>}
+          </div>
+          {issues.length > 0 && (
+            <ul className="publish-issues">
+              {issues.slice(0, 6).map((i) => (
+                <li key={i.key} className={`is-${i.severity}`}>
+                  {i.message}
+                </li>
+              ))}
+              {issues.length > 6 && <li className="publish-issues-more">and {issues.length - 6} more</li>}
+            </ul>
+          )}
+          {issues.length > 0 && (
+            <button className="btn btn--small" onClick={openPrepublish}>
+              Review and fix…
+            </button>
+          )}
+          {blocked && (
+            <p className="dialog-status dialog-status--error">
+              This site uses sprites marked reference only ({borrowed.map((s) => s.name).join(", ")}), so it can't go online. Save it to a folder to practise with it.
+            </p>
+          )}
+          <div className="publish-nav">
+            <button className="btn" onClick={() => setStep(0)}>
+              ← Back
+            </button>
+            <button className="btn btn--primary" disabled={blocked} onClick={() => setStep(2)}>
+              {checkCounts.fix ? "Continue anyway →" : "Next: options →"}
+            </button>
+          </div>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          {card.online && desktop && (
+            <section className="publish-target">
+              <header>
+                <strong>{card.title}</strong>
+                {lastUrl(card.id) && (
+                  <button className="link-button" onClick={() => openResult(lastUrl(card.id)!)}>
+                    {lastUrl(card.id)}
+                  </button>
                 )}
-                <button className="btn btn--primary" disabled={working} onClick={() => run("netlify")}>
-                  {config.netlify?.siteId ? "Publish update" : "Publish to Netlify"}
-                </button>
-              </div>
-            )}
-          </section>
-          <section className="publish-target">
-            <header>
-              <strong>GitHub Pages</strong>
-              {config.github?.url && (
-                <button className="link-button" onClick={() => openResult(config.github!.url!)}>
-                  {config.github.url}
-                </button>
+              </header>
+              <TokenField service={card.id as PublishService} connected={connected[card.id as "netlify"]} onChange={refreshConnections} />
+              {card.id === "netlify" && connected.netlify && !config.netlify?.siteId && (
+                <input type="text" placeholder="Site name (optional, e.g. my-portfolio)" value={netlifyName} onChange={(e) => setNetlifyName(e.target.value)} />
               )}
-            </header>
-            <TokenField service="github" connected={connected.github} onChange={refreshConnections} />
-            {connected.github && (
-              <div className="publish-row">
-                <input type="text" aria-label="Repository name" value={repo} onChange={(e) => setRepo(e.target.value)} />
-                <button className="btn btn--primary" disabled={working || !slugify(repo)} onClick={() => run("github")}>
-                  Publish to GitHub Pages
-                </button>
-              </div>
-            )}
-          </section>
-          <section className="publish-target">
-            <header>
-              <strong>Cloudflare Pages</strong>
-              {config.cloudflare?.url && (
-                <button className="link-button" onClick={() => openResult(config.cloudflare!.url!)}>
-                  {config.cloudflare.url}
-                </button>
+              {card.id === "github" && connected.github && <input type="text" aria-label="Repository name" value={repo} onChange={(e) => setRepo(e.target.value)} />}
+              {card.id === "cloudflare" && connected.cloudflare && (
+                <div className="publish-row">
+                  <input type="text" aria-label="Cloudflare account ID" placeholder="Account ID (dashboard → any domain → right column)" value={cfAccount} onChange={(e) => setCfAccount(e.target.value)} />
+                  <input type="text" aria-label="Pages project name" placeholder="project-name" value={cfProject} onChange={(e) => setCfProject(e.target.value)} />
+                </div>
               )}
-            </header>
-            <TokenField service="cloudflare" connected={connected.cloudflare} onChange={refreshConnections} />
-            {connected.cloudflare && (
-              <div className="publish-row">
-                <input type="text" aria-label="Cloudflare account ID" placeholder="Account ID (dashboard → any domain → right column)" value={cfAccount} onChange={(e) => setCfAccount(e.target.value)} />
-                <input type="text" aria-label="Pages project name" placeholder="project-name" value={cfProject} onChange={(e) => setCfProject(e.target.value)} />
-                <button className="btn btn--primary" disabled={working || !cfAccount.trim() || !slugify(cfProject)} onClick={() => run("cloudflare")}>
-                  Publish to Cloudflare
-                </button>
-              </div>
-            )}
-          </section>
-          <p className="panel-hint">Publishing replaces what is online with this version. Tokens are stored encrypted on this computer, never in the project.</p>
-        </div>
+              <p className="panel-hint">Publishing replaces what's online with this version. Tokens are stored encrypted on this computer, never in the project.</p>
+            </section>
+          )}
+          {googleFonts.length > 0 && (
+            <fieldset className="dialog-fonts">
+              <legend>Fonts ({googleFonts.map((f) => f.family).join(", ")})</legend>
+              <label>
+                <input type="radio" checked={fontHosting === "embed"} onChange={() => setFontHosting("embed")} />
+                Include the font files in the site <span>(recommended: private, works offline)</span>
+              </label>
+              <label>
+                <input type="radio" checked={fontHosting === "link"} onChange={() => setFontHosting("link")} />
+                Load them from Google Fonts <span>(smaller download)</span>
+              </label>
+            </fieldset>
+          )}
+          <label className="dialog-option">
+            <input type="checkbox" checked={optimise} onChange={(e) => setOptimise(e.target.checked)} />
+            Optimise pictures <span>(WebP, at most {2400}px wide: much faster pages)</span>
+          </label>
+          <div className="publish-nav">
+            <button className="btn" onClick={() => setStep(1)}>
+              ← Back
+            </button>
+            <button className="btn btn--primary" disabled={!tokenReady || !targetReady || blocked} onClick={go}>
+              {actionLabel[target]}
+            </button>
+          </div>
+        </>
       )}
 
-      {status.kind === "working" && <p className="dialog-status">{status.message}</p>}
-      {status.kind === "done" && (
-        <p className="dialog-status dialog-status--ok">
-          {status.message}{" "}
-          {status.url && desktop && (
-            <button className="link-button" onClick={() => openResult(status.url!)}>
-              {status.url.startsWith("folder:") ? "Show folder" : "Open site"}
-            </button>
+      {step === 3 && (
+        <>
+          {(status.kind === "working" || status.kind === "idle") && (
+            <div className="publish-working">
+              <span className="publish-spinner" aria-hidden />
+              <p>{status.kind === "working" ? status.message : "Starting…"}</p>
+            </div>
           )}
-          {status.url && !status.url.startsWith("folder:") && (
-            <button className="link-button" onClick={() => (onClose(), openTellPeople())}>
-              Tell people →
-            </button>
+          {status.kind === "done" && (
+            <div className="publish-done">
+              <strong>✓ Done</strong>
+              <p>{status.message}</p>
+              <div className="publish-nav">
+                <div className="publish-row">
+                  {status.url && desktop && (
+                    <button className="btn" onClick={() => openResult(status.url!)}>
+                      {status.url.startsWith("folder:") ? "Show the folder" : "Open the site"}
+                    </button>
+                  )}
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      setStatus({ kind: "idle" });
+                      setStep(0);
+                    }}
+                  >
+                    Publish somewhere else
+                  </button>
+                </div>
+                {status.url && !status.url.startsWith("folder:") ? (
+                  <button className="btn btn--primary" onClick={() => (onClose(), openTellPeople())}>
+                    Tell people →
+                  </button>
+                ) : (
+                  <button className="btn btn--primary" onClick={onClose}>
+                    Done
+                  </button>
+                )}
+              </div>
+            </div>
           )}
-        </p>
+          {status.kind === "error" && (
+            <>
+              <p className="dialog-status dialog-status--error">That didn't work: {status.message}</p>
+              <div className="publish-nav">
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setStatus({ kind: "idle" });
+                    setStep(2);
+                  }}
+                >
+                  ← Back to options
+                </button>
+                <button className="btn btn--primary" onClick={go}>
+                  Try again
+                </button>
+              </div>
+            </>
+          )}
+        </>
       )}
-      {status.kind === "error" && <p className="dialog-status dialog-status--error">Failed: {status.message}</p>}
-
-      <details className="dialog-help">
-        <summary>Where can I host this for free?</summary>
-        <ul>
-          <li>
-            <strong>Netlify Drop</strong>: drag the unzipped folder onto app.netlify.com/drop.
-          </li>
-          <li>
-            <strong>Cloudflare Pages</strong>: create a project and choose “Upload assets” (the desktop app can do it for you).
-          </li>
-          <li>
-            <strong>GitHub Pages</strong>: commit the files to a repository and enable Pages in its settings.
-          </li>
-        </ul>
-        <p>
-          {desktop
-            ? "Or use one-click publishing above. "
-            : "The desktop app can publish to Netlify, GitHub Pages or Cloudflare Pages in one click. "}
-          To check the site locally, serve the folder (for example <code>npx serve</code>) rather than double-clicking
-          <code>index.html</code>, because page links use clean folder URLs.
-        </p>
-      </details>
     </dialog>
   );
 }

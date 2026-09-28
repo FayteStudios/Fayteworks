@@ -5812,3 +5812,212 @@ button.topbar-save:hover {
 .picture-mine img {
   object-fit: contain;
 }
+
+.publish-flow {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.publish-flow .dialog-header {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.publish-steps {
+  display: flex;
+  gap: 4px;
+  margin: 0 auto 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.publish-steps button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ui-muted);
+  font: inherit;
+  font-size: 13px;
+}
+
+.publish-steps button span {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ui-raised);
+  font-size: 11px;
+}
+
+.publish-steps .is-current button {
+  background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  color: var(--ui-text);
+}
+
+.publish-steps .is-current button span,
+.publish-steps .is-done button span {
+  background: var(--ui-accent);
+  color: #fff;
+}
+
+.publish-steps .is-done button {
+  color: var(--ui-text);
+  cursor: pointer;
+}
+
+.publish-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.publish-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.publish-card:hover:not(:disabled) {
+  border-color: var(--ui-accent);
+}
+
+.publish-card.is-active {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 12%, var(--ui-bg));
+}
+
+.publish-card:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.publish-card-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #fff;
+  color: #1d1b18;
+  font-size: 18px;
+}
+
+.publish-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.publish-card-text small {
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.publish-card-text .publish-card-ok {
+  color: #4ade80;
+}
+
+.publish-card-text .publish-card-need {
+  color: #fbbf24;
+}
+
+.publish-card-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publish-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.publish-check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #4ade80 14%, transparent);
+}
+
+.publish-check.has-notes {
+  background: color-mix(in srgb, #fbbf24 14%, transparent);
+}
+
+.publish-check.has-fixes {
+  background: color-mix(in srgb, #f87171 16%, transparent);
+}
+
+.publish-check span {
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+
+.publish-issues {
+  margin: 12px 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.publish-issues li {
+  margin: 4px 0;
+}
+
+.publish-issues li.is-fix::marker {
+  color: #f87171;
+}
+
+.publish-issues-more {
+  color: var(--ui-muted);
+  list-style: none;
+}
+
+.publish-working {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 30px 6px;
+}
+
+.publish-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--ui-border);
+  border-top-color: var(--ui-accent);
+  border-radius: 50%;
+  animation: publish-spin 0.8s linear infinite;
+}
+
+@keyframes publish-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.publish-done strong {
+  font-size: 18px;
+}
+
+.publish-flow .publish-target input {
+  width: 100%;
+  margin-top: 8px;
+}
