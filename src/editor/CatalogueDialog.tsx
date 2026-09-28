@@ -164,7 +164,7 @@ function RemotePreview({ entry, dark }: { entry: RemoteEntry; dark: boolean }) {
   );
 }
 
-function Browse({ onAdd }: { onAdd: (props: BlockProps, size: { w: number; h: number }, type?: string, imported?: boolean) => void }) {
+function Browse({ onAdd }: { onAdd: (props: BlockProps, size: { w: number; h: number }, type?: string, imported?: boolean, edit?: boolean) => void }) {
   const [mine, setMine] = useState(listMine);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<View>("all");
@@ -266,16 +266,16 @@ function Browse({ onAdd }: { onAdd: (props: BlockProps, size: { w: number; h: nu
 
   const isDark = (e: Entry) => (bg === "auto" ? e.dark : bg === "dark");
 
-  async function add(entry: Entry) {
+  async function add(entry: Entry, edit = false) {
     setError("");
     const remember = () => writeList(RECENT_KEY, [entry.key, ...readList(RECENT_KEY).filter((k) => k !== entry.key)].slice(0, 24));
     if (entry.item) {
       remember();
-      return onAdd(catalogueBlockProps(entry.item), entry.item.size);
+      return onAdd(catalogueBlockProps(entry.item), entry.item.size, undefined, undefined, edit);
     }
     if (entry.mine) {
       remember();
-      return onAdd(await prepareMine(entry.mine), entry.mine.size, entry.mine.type, false);
+      return onAdd(await prepareMine(entry.mine), entry.mine.size, entry.mine.type, false, edit);
     }
     if (!entry.remote) return;
     setAdding(entry.key);
@@ -284,7 +284,7 @@ function Browse({ onAdd }: { onAdd: (props: BlockProps, size: { w: number; h: nu
       const props = await remoteBlockProps(entry.remote, code);
       const { w, h } = remoteSize(entry.remote.category);
       remember();
-      onAdd(props, { w, h });
+      onAdd(props, { w, h }, undefined, undefined, edit);
     } catch (e) {
       setError(`Couldn't download “${entry.name}”. Check the internet connection and try again. (${e instanceof Error ? e.message : String(e)})`);
       setAdding(null);
@@ -387,7 +387,10 @@ function Browse({ onAdd }: { onAdd: (props: BlockProps, size: { w: number; h: nu
                 >
                   {fav ? "★" : "☆"}
                 </button>
-                <button className="btn btn--small btn--primary" disabled={adding !== null} onClick={() => void add(entry)}>
+                <button className="btn btn--small" disabled={adding !== null} title="Add it and open it straight away, to change the words, colours or code" onClick={() => void add(entry, true)}>
+                  Edit
+                </button>
+                <button className="btn btn--small btn--primary" disabled={adding !== null} title="Add it to the page as it is" onClick={() => void add(entry)}>
                   {adding === entry.key ? "Adding…" : "Add"}
                 </button>
               </div>
@@ -538,6 +541,7 @@ function ImportCode({ onAdd }: { onAdd: (props: BlockProps, size: { w: number; h
 export function CatalogueDialog({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const addBlock = useAddBlock();
+  const { focusBlock } = useEditor();
   const [tab, setTab] = useState<"browse" | "import" | "capture">("browse");
 
   useEffect(() => {
@@ -565,10 +569,11 @@ export function CatalogueDialog({ onClose }: { onClose: () => void }) {
       </header>
       {tab === "browse" ? (
         <Browse
-          onAdd={(props, size, type = "code", imported = true) => {
-            addBlock(type, { props, size });
+          onAdd={(props, size, type = "code", imported = true, edit = false) => {
+            const placed = addBlock(type, { props, size });
             if (imported) void rememberImport(type, props, size);
             onClose();
+            if (edit) focusBlock(placed);
           }}
         />
       ) : tab === "import" ? (

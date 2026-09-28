@@ -738,6 +738,15 @@ function Workspace() {
     const id = requestAnimationFrame(() => document.querySelector(".editor .is-focus-target")?.scrollIntoView({ block: "center", behavior: "smooth" }));
     return () => cancelAnimationFrame(id);
   }, [toolOpen, state.focusedBlock?.blockId]);
+  useEffect(() => {
+    if (!state.focusedBlock) return;
+    const id = window.setTimeout(() => {
+      const target = document.querySelector(".editor .is-focus-target");
+      const box = target?.getBoundingClientRect();
+      if (box && (box.bottom < 80 || box.top > window.innerHeight - 40)) target!.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 120);
+    return () => window.clearTimeout(id);
+  }, [state.focusedBlock?.blockId]);
   const bottom = toolOpen ? Math.max(260, layout.bottomHeight) : 0;
 
   return (

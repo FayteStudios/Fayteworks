@@ -7,7 +7,7 @@ import { findPage, findSection, maxBottom } from "../model/ops";
 import { useEditor } from "../state/store";
 import { findComponent, variantOf } from "../model/components";
 
-export function useAddBlock(): (type: string, options?: { props?: BlockProps; size?: { w: number; h: number }; toPage?: boolean }) => void {
+export function useAddBlock(): (type: string, options?: { props?: BlockProps; size?: { w: number; h: number }; toPage?: boolean }) => { sectionId: string; blockId: string } {
   const { state, page, commit, select } = useEditor();
   return function addBlock(type, options = {}) {
     const { selection } = state;
@@ -45,5 +45,6 @@ export function useAddBlock(): (type: string, options?: { props?: BlockProps; si
       else s.blocks.push(block);
     });
     select({ kind: "block", sectionId: section.id, blockId: block.id });
+    return { sectionId: section.id, blockId: block.id };
   };
 }
