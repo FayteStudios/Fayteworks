@@ -86,6 +86,8 @@ let projectAssets = false;
 
 const projectUrl = (ref: string) => `siteasset://asset/${ref.slice(ASSET_PREFIX.length)}`;
 
+export const usingProjectAssets = () => projectAssets;
+
 export function useProjectAssets(on: boolean) {
   projectAssets = on && Boolean(desktop);
   urls.forEach((url) => URL.revokeObjectURL(url));

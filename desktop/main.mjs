@@ -479,6 +479,22 @@ async function createWindow() {
     Menu.buildFromTemplate(items).popup({ window });
   });
   window.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.endsWith("#second-window") && (url.startsWith("file:") || (DEV_URL && url.startsWith(DEV_URL.replace(/#.*$/, ""))))) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          width: 1100,
+          height: 900,
+          minWidth: 480,
+          minHeight: 400,
+          title: "FayteWorks · second window",
+          icon: path.join(here, "..", "build", "icon.png"),
+          backgroundColor: "#121316",
+          autoHideMenuBar: true,
+          webPreferences: { preload: path.join(here, "preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false }
+        }
+      };
+    }
     if (/^https:\/\//.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });

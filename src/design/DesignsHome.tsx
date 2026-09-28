@@ -6,6 +6,7 @@ import type { DesignFormat, Page } from "../model/types";
 import { useEditor } from "../state/store";
 import { designThumbnail } from "./exportDesign";
 import { closeDesignHome } from "./home";
+import { openSecondWindow } from "../viewer/live";
 import { NewDesignDialog } from "./NewDesignDialog";
 
 type Design = Page & { design: DesignFormat };
@@ -87,9 +88,14 @@ export function DesignsHome() {
           <h1>Designs</h1>
           <p>Flyers, cards, posters, stickers, social images and drawings, in your site's look. They export as pictures or PDFs and are never part of the website.</p>
         </div>
-        <button className="btn" onClick={closeDesignHome}>
-          {page.design ? "Back to the design" : "Back to the website"}
-        </button>
+        <div className="designs-home-actions">
+          <button className="btn" title="Show a design or page in its own window, beside the editor" onClick={openSecondWindow}>
+            ⧉ Second window
+          </button>
+          <button className="btn" onClick={closeDesignHome}>
+            {page.design ? "Back to the design" : "Back to the website"}
+          </button>
+        </div>
       </header>
 
       <section className="designs-home-section">

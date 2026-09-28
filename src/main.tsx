@@ -5,13 +5,17 @@ import { EditorShell } from "./editor/EditorShell";
 import { isDesktop } from "./platform/desktop";
 import { DesktopRoot } from "./platform/DesktopRoot";
 import { EditorProvider } from "./state/store";
+import { VIEWER_HASH } from "./viewer/live";
+import { ViewerRoot } from "./viewer/ViewerRoot";
 import "@fontsource-variable/dm-sans";
 import "./site/site.css";
 import "./editor/editor.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {isDesktop ? (
+    {location.hash === VIEWER_HASH ? (
+      <ViewerRoot />
+    ) : isDesktop ? (
       <DesktopRoot />
     ) : (
       <EditorProvider>

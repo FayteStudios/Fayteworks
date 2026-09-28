@@ -1,5 +1,6 @@
 import { openScene, useScene } from "../scenes/scenes";
 import { DesignsPanel } from "../design/DesignsPanel";
+import { openSecondWindow, useLiveBroadcast } from "../viewer/live";
 import { CodePanel, DrawPanel, MediaPanel } from "./FocusPanels";
 import { openShortcuts, ShortcutsHost } from "../guides/ShortcutsDialog";
 import { DesignsHome } from "../design/DesignsHome";
@@ -472,6 +473,7 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
               {item("Publish or export…", () => setExporting(true))}
               {item("Check before publishing…", () => setChecking(true))}
               {item("Version history…", () => setHistory(true))}
+              {item("Open a second window", openSecondWindow)}
               <hr />
               {item("Translate (languages)…", () => setTranslating(true))}
               {item("Services (payments, sign-ups, statistics)…", () => setServicesOpen(true))}
@@ -539,7 +541,15 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
         )}
       </div>
 
-      {designing ? <div className="topbar-group device-bar" /> : <DeviceBar />}
+      {designing ? (
+        <div className="topbar-group device-bar">
+          <button className="btn topbar-tool" title="Show this design, or any page, in its own window next to the editor" onClick={openSecondWindow}>
+            ⧉ Second window
+          </button>
+        </div>
+      ) : (
+        <DeviceBar />
+      )}
 
       <div className="topbar-group">
         {editing && (
@@ -712,6 +722,7 @@ function Workspace() {
   const editing = state.mode === "edit";
   useShortcuts();
   const { page, focusBlock } = useEditor();
+  useLiveBroadcast(state.site, page.id);
   const focusTool = useFocusTool();
   const designing = editing && Boolean(page.design);
   const latest = useRef({ state, focusBlock });

@@ -6170,3 +6170,95 @@ body:has(.focus-tool-panel--draw, .focus-tool-panel--code, .focus-tool-panel.is-
   flex-direction: column;
   gap: 10px;
 }
+
+.designs-home-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #1a1c20;
+  color: #e8e8ea;
+  font-family: "DM Sans Variable", system-ui, sans-serif;
+}
+
+.viewer-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #2c2f36;
+  background: #15171a;
+  font-size: 14px;
+}
+
+.viewer-bar select {
+  padding: 6px 8px;
+  border: 1px solid #2c2f36;
+  border-radius: 8px;
+  background: #1f2227;
+  color: inherit;
+  font: inherit;
+}
+
+.viewer-widths {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: #1f2227;
+}
+
+.viewer-widths button {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #a3a7ae;
+  font: inherit;
+  cursor: pointer;
+}
+
+.viewer-widths button.is-active {
+  background: #2e3239;
+  color: #fff;
+}
+
+.viewer-note {
+  margin-left: auto;
+  color: #8b9098;
+  font-size: 12px;
+}
+
+.viewer-stage {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+}
+
+.viewer-scale {
+  display: flex;
+  justify-content: center;
+}
+
+.viewer-frame {
+  flex: none;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 0.45);
+}
+
+.viewer-frame > .site-root {
+  min-height: 60vh;
+  color-scheme: light;
+}
+
+.viewer-wait {
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  background: #1a1c20;
+  color: #a3a7ae;
+  font-family: system-ui, sans-serif;
+}
