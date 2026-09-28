@@ -70,6 +70,14 @@ export interface LiveShapeInfo {
   inner: number;
 }
 
+export interface Artboard {
+  name: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface Guides {
   x: number[];
   y: number[];
@@ -145,6 +153,17 @@ function viewBoxOf(svg: string): { x: number; y: number; w: number; h: number } 
   const w = parseFloat(root.getAttribute("width") ?? "");
   const h = parseFloat(root.getAttribute("height") ?? "");
   return { x: 0, y: 0, w: w > 0 ? w : 400, h: h > 0 ? h : 300 };
+}
+
+function artboardsOf(svg: string): Artboard[] {
+  const match = svg.match(/data-fw-artboards="([^"]*)"/);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
+    return Array.isArray(parsed) ? parsed.filter((b) => b && [b.x, b.y, b.w, b.h].every((n) => typeof n === "number" && Number.isFinite(n)) && b.w > 0 && b.h > 0).map((b) => ({ name: String(b.name ?? "Artboard"), x: b.x, y: b.y, w: b.w, h: b.h })) : [];
+  } catch {
+    return [];
+  }
 }
 
 function guidesOf(svg: string): Guides {
@@ -451,6 +470,7 @@ export class DrawingEngine {
   tile: { tile: string; tileW: number; tileH: number } | null = null;
   private stopTiles: () => void = () => undefined;
   guides: Guides = { x: [], y: [] };
+  boards: Artboard[] = [];
   defaults: { fill: string | null; stroke: string | null; strokeWidth: number } = { fill: "#d9d4cc", stroke: null, strokeWidth: 2 };
   lineDefaults: { stroke: string; strokeWidth: number } = { stroke: "#1d1b18", strokeWidth: 2 };
   fonts: { heading: string; body: string } = { heading: "Georgia, serif", body: "system-ui, sans-serif" };
@@ -507,6 +527,7 @@ export class DrawingEngine {
     });
     this.box = viewBoxOf(svg);
     this.guides = guidesOf(svg);
+    this.boards = artboardsOf(svg);
     this.load(svg);
     this.drawBoard();
     this.art.activate();
@@ -559,6 +580,11 @@ export class DrawingEngine {
   private drawBoard() {
     this.back.removeChildren();
     this.back.activate();
+    for (const b of this.boards) {
+      new this.scope.Path.Rectangle({ point: [b.x, b.y], size: [b.w, b.h], fillColor: "white", shadowColor: new this.scope.Color(0, 0, 0, 0.35), shadowBlur: 18, locked: true });
+      new this.scope.PointText({ point: [b.x, b.y - 6], content: b.name, fontSize: 11, fontFamily: "system-ui, sans-serif", fillColor: "#9aa0a8", locked: true });
+    }
+    if (this.boards.length) new this.scope.PointText({ point: [this.box.x, this.box.y - 6], content: "Main", fontSize: 11, fontFamily: "system-ui, sans-serif", fillColor: "#9aa0a8", locked: true });
     this.board = new this.scope.Path.Rectangle({
       point: [this.box.x, this.box.y],
       size: [this.box.w, this.box.h],
@@ -576,7 +602,7 @@ export class DrawingEngine {
     this.commit("", "Artboard size");
   }
 
-  exportSvg(): string {
+  exportSvg(area?: { x: number; y: number; w: number; h: number }): string {
     this.clearSelectionFlags();
     this.restoreDim();
     const texts = this.art.getItems({ recursive: true, class: this.scope.PointText, match: (t: paper.PointText) => t.content.includes("\n") }) as paper.PointText[];
@@ -601,7 +627,7 @@ export class DrawingEngine {
     const ns = "http://www.w3.org/2000/svg";
     const doc = document.implementation.createDocument(ns, "svg", null);
     const root = doc.documentElement;
-    const { x, y, w, h } = this.box;
+    const { x, y, w, h } = area ?? this.box;
     root.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
     root.setAttribute("width", String(w));
     root.setAttribute("height", String(h));
@@ -615,6 +641,7 @@ export class DrawingEngine {
     exportPaint(doc, root);
     exportEffects(doc, root);
     if (this.guides.x.length || this.guides.y.length) root.setAttribute("data-fw-guides", JSON.stringify(this.guides));
+    if (this.boards.length && !area) root.setAttribute("data-fw-artboards", JSON.stringify(this.boards));
     this.restorePreserved(doc, root);
     const out = new XMLSerializer().serializeToString(root);
     this.applyDim();
@@ -652,7 +679,7 @@ export class DrawingEngine {
     this.clearSelectionFlags();
     this.restoreDim();
     this.art.opacity = 1;
-    const json = JSON.stringify({ box: this.box, guides: this.guides, art: this.art.exportJSON({ asString: false }), ref: this.reference ? this.reference.matrix.values : null });
+    const json = JSON.stringify({ box: this.box, boards: this.boards, guides: this.guides, art: this.art.exportJSON({ asString: false }), ref: this.reference ? this.reference.matrix.values : null });
     this.art.opacity = this.outlineView ? 0 : 1;
     this.applyDim();
     return json;
@@ -678,9 +705,10 @@ export class DrawingEngine {
   }
 
   private restore(snap: string) {
-    const { box, art, ref, guides } = JSON.parse(snap);
+    const { box, art, ref, guides, boards } = JSON.parse(snap);
     if (ref && this.reference) this.reference.matrix = new this.scope.Matrix(ref);
     this.box = box;
+    this.boards = boards ?? [];
     this.guides = guides ?? { x: [], y: [] };
     this.drawBoard();
     this.dimmed = [];
@@ -767,6 +795,61 @@ export class DrawingEngine {
     view.center = view.center.add(before.subtract(after));
     this.callbacks.onZoom(z);
     this.refresh();
+  }
+
+  fitAll() {
+    const view = this.scope.view;
+    const { width, height } = view.viewSize;
+    if (!width || !height) return;
+    const all = this.boards.map((b) => new this.scope.Rectangle(b.x, b.y, b.w, b.h)).reduce((a, b) => a.unite(b), new this.scope.Rectangle(this.box.x, this.box.y, this.box.w, this.box.h));
+    view.zoom = Math.max(0.05, Math.min((width - 80) / all.width, (height - 80) / all.height));
+    view.center = all.center;
+    this.callbacks.onZoom(view.zoom);
+    this.refresh();
+  }
+
+  addBoard() {
+    const all = [this.box, ...this.boards];
+    const right = Math.max(...all.map((b) => b.x + b.w));
+    const used = new Set(this.boards.map((b) => b.name));
+    let k = this.boards.length + 2;
+    while (used.has(`Artboard ${k}`)) k++;
+    this.boards = [...this.boards, { name: `Artboard ${k}`, x: Math.round(right + 40), y: this.box.y, w: this.box.w, h: this.box.h }];
+    this.drawBoard();
+    this.commit("", "Add artboard");
+    this.fitAll();
+  }
+
+  setBoard(index: number, patch: Partial<Artboard>) {
+    const b = this.boards[index];
+    if (!b) return;
+    const next = { ...b, ...patch };
+    next.w = Math.max(1, next.w);
+    next.h = Math.max(1, next.h);
+    this.boards = this.boards.map((x, i) => (i === index ? next : x));
+    this.drawBoard();
+    this.commit("board", "Artboard");
+  }
+
+  removeBoard(index: number) {
+    this.boards = this.boards.filter((_, i) => i !== index);
+    this.drawBoard();
+    this.commit("", "Remove artboard");
+  }
+
+  async exportBoards(format: "svg" | "png", scale: number): Promise<{ name: string; blob: Blob }[]> {
+    this.finishPen();
+    const all: Artboard[] = [{ name: "Main", ...this.box }, ...this.boards];
+    const used = new Set<string>();
+    const files: { name: string; blob: Blob }[] = [];
+    for (const b of all) {
+      let base = b.name.replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "") || "artboard";
+      while (used.has(base)) base += "-2";
+      used.add(base);
+      if (format === "svg") files.push({ name: `${base}.svg`, blob: new Blob([this.exportSvg(b)], { type: "image/svg+xml" }) });
+      else files.push({ name: `${base}.png`, blob: await this.exportPng(scale, false, null, b) });
+    }
+    return files;
   }
 
   fit() {
@@ -2936,7 +3019,8 @@ export class DrawingEngine {
     return this.colorCache;
   }
 
-  async exportPng(scale: number, selectionOnly: boolean, background: string | null): Promise<Blob> {
+  async exportPng(scale: number, selectionOnly: boolean, background: string | null, area?: { x: number; y: number; w: number; h: number }): Promise<Blob> {
+    const clipTo = area ? new this.scope.Rectangle(area.x, area.y, area.w, area.h) : this.board.bounds;
     this.finishPen();
     this.clearSelectionFlags();
     this.restoreDim();
@@ -2948,8 +3032,8 @@ export class DrawingEngine {
       if (reach) group.insertChild(0, new this.scope.Path.Rectangle({ rectangle: group.strokeBounds.expand(reach * 2), insert: false }));
       if (background) group.insertChild(0, new this.scope.Path.Rectangle({ rectangle: group.strokeBounds, fillColor: background, insert: false }));
     } else {
-      group.addChild(new this.scope.Path.Rectangle({ rectangle: this.board.bounds, insert: false }));
-      if (background) group.addChild(new this.scope.Path.Rectangle({ rectangle: this.board.bounds, fillColor: background, insert: false }));
+      group.addChild(new this.scope.Path.Rectangle({ rectangle: clipTo, insert: false }));
+      if (background) group.addChild(new this.scope.Path.Rectangle({ rectangle: clipTo, fillColor: background, insert: false }));
       group.addChildren(this.art.children.map((c) => c.clone({ insert: false })));
       group.clipped = true;
     }
@@ -3602,6 +3686,10 @@ export class DrawingEngine {
     const b = this.board.bounds;
     xs.push(b.left, b.center.x, b.right, ...this.guides.x);
     ys.push(b.top, b.center.y, b.bottom, ...this.guides.y);
+    for (const ab of this.boards) {
+      xs.push(ab.x, ab.x + ab.w / 2, ab.x + ab.w);
+      ys.push(ab.y, ab.y + ab.h / 2, ab.y + ab.h);
+    }
     const excluded = (i: paper.Item) => exclude.some((e) => i === e || i.isDescendant(e) || e.isDescendant(i));
     for (const item of this.scopeRoot.children) {
       if (!item.visible || excluded(item)) continue;

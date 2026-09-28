@@ -409,13 +409,13 @@ export default function VectorEditor({
     setEffect({ kind, params });
     engine!.applyEffect(kind, params[kind]);
   };
-  const saveLayers = async (format: "svg" | "png") => {
+  const saveFiles = async (what: "layers" | "boards", format: "svg" | "png") => {
     if (!engine) return;
     setLayerOut("busy");
     try {
-      const files = await engine.exportLayers(format, png.scale);
+      const files = what === "layers" ? await engine.exportLayers(format, png.scale) : await engine.exportBoards(format, png.scale);
       const zip = createZip(await Promise.all(files.map(async (f) => ({ path: f.name, data: new Uint8Array(await f.blob.arrayBuffer()) }))));
-      downloadBlob(zip, `drawing-layers-${format}.zip`);
+      downloadBlob(zip, `drawing-${what}-${format}.zip`);
       setLayerOut("");
     } catch (error) {
       setLayerOut(error instanceof Error ? error.message : String(error));
@@ -1683,6 +1683,27 @@ export default function VectorEditor({
                 <NumberField label="H" min={1} value={engine.box.h} onChange={(h) => engine.setSize(engine.box.w, h)} />
                 <NumberField label="Grid" min={1} value={engine.options.grid} onChange={(grid) => engine.setGrid({ grid })} />
               </div>
+              {engine.boards.length > 0 && <p className="ve-note">The main artboard is what shows on the page. The others are for extra versions, icon sets and stickers.</p>}
+              {engine.boards.map((b, i) => (
+                <div key={i} className="ve-extra">
+                  <div className="ve-row">
+                    <input className="ve-board-name" aria-label="Artboard name" defaultValue={b.name} key={b.name} onBlur={(e) => e.target.value.trim() && e.target.value !== b.name && engine.setBoard(i, { name: e.target.value.trim() })} />
+                    <button className="ve-layer-toggle" title="Remove this artboard (the drawing on it stays)" onClick={() => engine.removeBoard(i)}>
+                      ×
+                    </button>
+                  </div>
+                  <div className="ve-grid">
+                    <NumberField label="X" value={b.x} onChange={(x) => engine.setBoard(i, { x })} />
+                    <NumberField label="Y" value={b.y} onChange={(y) => engine.setBoard(i, { y })} />
+                    <NumberField label="W" min={1} value={b.w} onChange={(w) => engine.setBoard(i, { w })} />
+                    <NumberField label="H" min={1} value={b.h} onChange={(h) => engine.setBoard(i, { h })} />
+                  </div>
+                </div>
+              ))}
+              <div className="ve-buttons">
+                <button onClick={() => engine.addBoard()}>+ Artboard</button>
+                {engine.boards.length > 0 && <button onClick={() => engine.fitAll()}>Show all artboards</button>}
+              </div>
             </section>
           )}
 
@@ -1723,12 +1744,25 @@ export default function VectorEditor({
                 {png.busy ? "Saving…" : "Save as PNG"}
               </button>
               {png.error && <p className="ve-note ve-error">{png.error}</p>}
+              {engine.boards.length > 0 && (
+                <>
+                  <h4>Each artboard as its own file</h4>
+                  <div className="ve-buttons">
+                    <button disabled={layerOut === "busy"} onClick={() => saveFiles("boards", "svg")}>
+                      SVG files
+                    </button>
+                    <button disabled={layerOut === "busy"} onClick={() => saveFiles("boards", "png")}>
+                      PNG files
+                    </button>
+                  </div>
+                </>
+              )}
               <h4>Each layer as its own file</h4>
               <div className="ve-buttons">
-                <button disabled={layerOut === "busy"} onClick={() => saveLayers("svg")}>
+                <button disabled={layerOut === "busy"} onClick={() => saveFiles("layers", "svg")}>
                   SVG files
                 </button>
-                <button disabled={layerOut === "busy"} onClick={() => saveLayers("png")}>
+                <button disabled={layerOut === "busy"} onClick={() => saveFiles("layers", "png")}>
                   PNG files
                 </button>
               </div>
