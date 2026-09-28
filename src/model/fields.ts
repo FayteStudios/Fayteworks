@@ -3,6 +3,8 @@ export type FieldKind = "text" | "textarea" | "number" | "range" | "color" | "se
 export interface FieldOption {
   value: string;
   label: string;
+  /** A brand mark (an SVG path in a 24 × 24 box and its colour); choices with icons show as buttons. */
+  icon?: { path: string; hex: string };
 }
 
 export interface FieldDef {

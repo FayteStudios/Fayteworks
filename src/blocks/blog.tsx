@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { siBluesky, siGithub, siMastodon } from "simple-icons";
 import { Markdown } from "../site/markdown";
 import type { BlockDefinition } from "./types";
 import { str } from "./util";
@@ -56,10 +57,10 @@ export const blogDefinitions: BlockDefinition[] = [
         label: "Comments from",
         kind: "select",
         options: [
-          { value: "giscus", label: "Giscus (GitHub Discussions)" },
-          { value: "cusdis", label: "Cusdis" },
-          { value: "bluesky", label: "Bluesky replies" },
-          { value: "mastodon", label: "Mastodon replies" }
+          { value: "giscus", label: "Giscus (GitHub Discussions)", icon: siGithub },
+          { value: "cusdis", label: "Cusdis", icon: { path: "M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H10l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm5 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm5 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z", hex: "4F46E5" } },
+          { value: "bluesky", label: "Bluesky replies", icon: siBluesky },
+          { value: "mastodon", label: "Mastodon replies", icon: siMastodon }
         ],
         hint: "Not sure? The Guide button below walks you through each."
       },

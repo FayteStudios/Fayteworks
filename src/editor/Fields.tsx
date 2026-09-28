@@ -260,6 +260,19 @@ export function FieldControl({ field, value, onChange, allowTokens }: ControlPro
         </div>
       );
     case "select":
+      if (field.options?.length && field.options.every((o) => o.icon))
+        return (
+          <div className="field-choices" role="radiogroup" aria-label={field.label}>
+            {field.options.map((o) => (
+              <button key={o.value} type="button" role="radio" aria-checked={String(value ?? "") === o.value} className={String(value ?? "") === o.value ? "field-choice is-active" : "field-choice"} onClick={() => onChange(o.value)}>
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                  <path d={o.icon!.path} fill={`#${o.icon!.hex}`} />
+                </svg>
+                <span>{o.label}</span>
+              </button>
+            ))}
+          </div>
+        );
       return (
         <select value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
           {field.options?.map((o) => (
