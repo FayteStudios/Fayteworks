@@ -56,12 +56,20 @@ export function motionAttrs(block: Block): Record<string, string | undefined> {
   };
 }
 
+export function turnMarkup(block: Block): { attrs: Record<string, string>; style: Record<string, string> } | null {
+  const t = block.turn;
+  if (!t || (!t.z && !t.x && !t.y)) return null;
+  const parts = [t.x || t.y ? `perspective(${Math.max(100, t.depth || 800)}px)` : "", t.x ? `rotateX(${t.x}deg)` : "", t.y ? `rotateY(${t.y}deg)` : "", t.z ? `rotate(${t.z}deg)` : ""].filter(Boolean);
+  return { attrs: { "data-turn": "" }, style: { "--fw-turn": parts.join(" ") } };
+}
+
 export function blockMotion(block: Block, sources?: Set<string>, asset?: (src: string) => string): { attrs: Record<string, string | undefined>; style: Record<string, string> } {
   const timeline = animationMarkup(block);
   const sounds = soundMarkup(block, asset);
-  const attrs: Record<string, string | undefined> = { ...motionAttrs(block), ...timeline?.attrs, ...sounds };
+  const turn = turnMarkup(block);
+  const attrs: Record<string, string | undefined> = { ...motionAttrs(block), ...timeline?.attrs, ...sounds, ...turn?.attrs };
   if (sources?.has(block.id)) attrs["data-b"] = block.id;
-  const style: Record<string, string> = { ...timeline?.style };
+  const style: Record<string, string> = { ...timeline?.style, ...turn?.style };
   if (block.motion?.reveal && block.motion.delay) style["--reveal-delay"] = `${block.motion.delay}ms`;
   return { attrs, style };
 }

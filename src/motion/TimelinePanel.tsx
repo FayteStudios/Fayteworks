@@ -28,6 +28,7 @@ function saveMine(list: BlockAnimation[]) {
 export function TimelinePanel() {
   const { state, page } = useEditor();
   const sel = state.selection;
+  const others = sel.kind === "block" ? (sel.blockIds ?? []).filter((id) => id !== sel.blockId) : [];
   const section = sel.kind === "block" ? findSection(state.site, page.id, sel.sectionId) : undefined;
   const block = sel.kind === "block" ? section?.blocks.find((b) => b.id === sel.blockId) : undefined;
   if (!section || !block) {
@@ -39,12 +40,13 @@ export function TimelinePanel() {
       </div>
     );
   }
-  return <BlockTimeline key={block.id} section={section} block={block} />;
+  return <BlockTimeline key={block.id} section={section} block={block} alsoSelected={others} />;
 }
 
 type KeySel = { track: number; key: number } | null;
 
-function BlockTimeline({ section, block }: { section: Section; block: Block }) {
+function BlockTimeline({ section, block, alsoSelected }: { section: Section; block: Block; alsoSelected: string[] }) {
+  const [gapMs, setGapMs] = useState(350);
   const { page, commit } = useEditor();
   const anims = block.animations ?? [];
   const [animId, setAnimId] = useState<string | null>(anims[0]?.id ?? null);
@@ -133,6 +135,19 @@ function BlockTimeline({ section, block }: { section: Section; block: Block }) {
     setAnimId(a.id);
     setKeySel(null);
     setT(0);
+  }
+
+  function cascade() {
+    if (!anim) return;
+    commit((draft) => {
+      const s = findSection(draft, page.id, section.id);
+      if (!s) return;
+      const targets = s.blocks.filter((b) => alsoSelected.includes(b.id)).sort((a, b) => a.y - b.y || a.x - b.x);
+      targets.forEach((b, i) => {
+        const copy: BlockAnimation = { ...structuredClone(anim), id: createId("anim"), delay: (anim.delay ?? 0) + (i + 1) * gapMs || undefined };
+        b.animations = [...(b.animations ?? []).filter((x) => x.name !== anim.name), copy];
+      });
+    });
   }
 
   async function saveAsMine() {
@@ -517,6 +532,22 @@ function BlockTimeline({ section, block }: { section: Section; block: Block }) {
                     Delete animation
                   </button>
                 </div>
+                {alsoSelected.length > 0 && (
+                  <div className="tl-cascade">
+                    <strong>Cascade</strong>
+                    <span className="field-hint">Give the other {alsoSelected.length} selected {alsoSelected.length === 1 ? "piece" : "pieces"} this animation, one after another (top to bottom, left to right).</span>
+                    <div className="field-row">
+                      <label className="tl-field">
+                        Each
+                        <input type="number" min={0} max={10000} step={50} value={gapMs} onChange={(e) => setGapMs(Math.max(0, Number(e.target.value) || 0))} />
+                        ms later
+                      </label>
+                      <button className="btn btn--small" onClick={cascade}>
+                        Cascade
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </aside>

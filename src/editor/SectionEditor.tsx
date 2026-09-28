@@ -9,7 +9,7 @@ import { cloneSection, findBlock, findPage, findSection, maxBottom, moveItem, re
 import type { Block, Section } from "../model/types";
 import { gridOf, toSectionSize } from "../model/grid";
 import { settleBlocks } from "../model/collisions";
-import { BlockContent, SectionShell, blockStyle, inFlowOrder, mobileHeightOf, sectionRowsByTier } from "../site/SiteRenderer";
+import { BlockContent, SectionShell, blockStyle, inFlowOrder, mobileHeightOf, sectionRowsByTier, turnMarkup } from "../site/SiteRenderer";
 import { createLayer, isBlockVisible, layerOf, targetLayerId } from "../model/layers";
 import { isCardShell, shellOf } from "../model/shells";
 import { cardLayouts } from "../model/extras";
@@ -561,6 +561,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
           const inert = dimmed || layer.locked || Boolean(block.locked);
           const editingText = inline.editingBlockId === block.id;
           const focused = state.focusedBlock?.blockId === block.id;
+          const insideHere = Boolean(makingHere) && state.componentAnchor?.blockId === block.id;
           const hiddenNote = isHiddenAt(block, tier)
             ? `Hidden on ${TIER_LABEL[tier].toLowerCase()}`
             : block.orientation && orientation && block.orientation !== orientation
@@ -582,7 +583,8 @@ export function SectionEditor({ section, role, index, total }: Props) {
                 drag && (drag.kind === "move" || drag.kind === "resize") && drag.preview[block.id] && !draggedIds.includes(block.id) && "is-making-room",
                 draggedIds.includes(block.id) && "is-dragged"
               )}
-              style={blockStyle(section, block, z)}
+              style={{ ...blockStyle(section, block, z), ...(insideHere ? undefined : turnMarkup(block)?.style) } as CSSProperties}
+              data-turn={!insideHere && turnMarkup(block) ? "" : undefined}
               data-section-id={sectionId}
               data-block-id={block.id}
               data-mobile-height={mobileHeightOf(block)}
@@ -611,6 +613,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
               )}
               {hiddenNote && <span className="editor-block-hidden-tag">{hiddenNote}</span>}
               {onlySelected && !inert && !editingText && <LinkTag block={block} sectionId={sectionId} />}
+              {onlySelected && !inert && !editingText && !layoutLocked && <TurnHandle block={block} sectionId={sectionId} />}
               {needsDescription(block) && (
                 <button className="editor-alt-tag" title="Screen readers can't describe this picture yet" onPointerDown={(e) => e.stopPropagation()} onClick={() => openAltText(block.id)}>
                   Add a description
@@ -782,6 +785,60 @@ function LinkTag({ block, sectionId }: { block: Block; sectionId: string }) {
           }
         />
       )}
+    </>
+  );
+}
+
+function TurnHandle({ block, sectionId }: { block: Block; sectionId: string }) {
+  const { page, commit } = useEditor();
+  const [showing, setShowing] = useState<number | null>(null);
+  const start = (e: ReactPointerEvent<HTMLSpanElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const host = e.currentTarget.closest(".editor-block");
+    if (!host) return;
+    const r = host.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const move = (ev: PointerEvent) => {
+      let deg = (Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180) / Math.PI + 90;
+      if (deg > 180) deg -= 360;
+      const step = ev.shiftKey ? 15 : 45;
+      const near = Math.round(deg / step) * step;
+      deg = ev.shiftKey || Math.abs(near - deg) < 3 ? near : Math.round(deg);
+      if (deg === -180) deg = 180;
+      setShowing(deg);
+      commit((draft) => {
+        const b = findBlock(draft, page.id, sectionId, block.id);
+        if (!b) return;
+        b.turn = { ...(b.turn ?? {}), z: deg };
+        if (!b.turn.z && !b.turn.x && !b.turn.y) delete b.turn;
+      }, `${block.id}.turn`);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setShowing(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  return (
+    <>
+      <span
+        className="editor-turn-handle"
+        title="Drag to turn (Shift: 15° steps). Double-click to straighten."
+        onPointerDown={start}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          commit((draft) => {
+            const b = findBlock(draft, page.id, sectionId, block.id);
+            if (b?.turn) delete b.turn.z;
+            if (b?.turn && !b.turn.x && !b.turn.y) delete b.turn;
+          });
+        }}
+      />
+      {showing !== null && <span className="editor-block-size">{showing}°</span>}
     </>
   );
 }

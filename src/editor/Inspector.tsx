@@ -653,6 +653,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
             ))}
           </div>
         )}
+        <TurnFields block={block} mutateBlock={mutateBlock} />
         <label className="field">
           <span className="field-label">Show in</span>
           <select
@@ -1215,5 +1216,46 @@ function ViewOriginal({ url }: { url: string }) {
       </button>
       <p className="field-hint">Hover effects, animations and scripts stay with the original: see how it moves there.</p>
     </section>
+  );
+}
+
+const TURN_FIELDS: { key: "z" | "x" | "y"; label: string; title: string }[] = [
+  { key: "z", label: "Turn °", title: "Turn it flat, like a card on a table (or drag the round handle above it)" },
+  { key: "x", label: "Tip back °", title: "Tip the top away from you (minus tips it towards you)" },
+  { key: "y", label: "Turn sideways °", title: "Swing it round like a door (minus swings the other way)" }
+];
+
+function TurnFields({ block, mutateBlock }: { block: Block; mutateBlock: (recipe: (b: Block) => void, key?: string) => void }) {
+  const turn = block.turn ?? {};
+  const set = (key: "z" | "x" | "y" | "depth", raw: string) =>
+    mutateBlock((b) => {
+      const n = Number(raw);
+      const next = { ...(b.turn ?? {}), [key]: Number.isFinite(n) && n ? Math.max(-360, Math.min(key === "depth" ? 5000 : 360, n)) : undefined };
+      if (!next.z && !next.x && !next.y) delete b.turn;
+      else b.turn = next;
+    }, `${block.id}.turn.${key}`);
+  return (
+    <div className="field inspector-turn">
+      <div className="field-row">
+        {TURN_FIELDS.map((f) => (
+          <label key={f.key} className="field" title={f.title}>
+            <span className="field-label">{f.label}</span>
+            <input type="number" step={1} value={turn[f.key] ?? 0} onChange={(e) => set(f.key, e.target.value)} />
+          </label>
+        ))}
+      </div>
+      {(turn.x || turn.y) && (
+        <label className="field">
+          <span className="field-label">Depth</span>
+          <input type="range" min={200} max={3000} step={50} value={turn.depth || 800} onChange={(e) => set("depth", e.target.value)} />
+          <span className="field-hint">Less depth makes the tilt look stronger, as if you were closer.</span>
+        </label>
+      )}
+      {(turn.z || turn.x || turn.y) && (
+        <button className="link-button" onClick={() => mutateBlock((b) => void delete b.turn)}>
+          Straighten
+        </button>
+      )}
+    </div>
   );
 }

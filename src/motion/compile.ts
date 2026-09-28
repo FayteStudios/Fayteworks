@@ -7,12 +7,14 @@ export const PROPS: Record<AnimProp, { label: string; unit: string; rest: number
   y: { label: "Move down", unit: "px", rest: 0, min: -2000, max: 2000, step: 1, cssVar: "--fw-y", css: (v) => `${v}px` },
   scale: { label: "Size", unit: "%", rest: 100, min: 0, max: 1000, step: 1, cssVar: "--fw-scale", css: (v) => String(v / 100) },
   rotate: { label: "Turn", unit: "°", rest: 0, min: -3600, max: 3600, step: 1, cssVar: "--fw-rotate", css: (v) => `${v}deg` },
+  tiltX: { label: "Tip back", unit: "°", rest: 0, min: -3600, max: 3600, step: 1, cssVar: "--fw-tx", css: (v) => `${v}deg` },
+  tiltY: { label: "Turn sideways", unit: "°", rest: 0, min: -3600, max: 3600, step: 1, cssVar: "--fw-ty", css: (v) => `${v}deg` },
   opacity: { label: "Opacity", unit: "%", rest: 100, min: 0, max: 100, step: 1, cssVar: "--fw-opacity", css: (v) => String(v / 100) },
   blur: { label: "Blur", unit: "px", rest: 0, min: 0, max: 100, step: 0.5, cssVar: "--fw-blur", css: (v) => `${v}px` },
   mask: { label: "Cutout", unit: "%", rest: 100, min: 0, max: 100, step: 1, cssVar: "--fw-mask", css: (v) => String(v) }
 };
 
-export const PROP_ORDER: AnimProp[] = ["x", "y", "scale", "rotate", "opacity", "blur", "mask"];
+export const PROP_ORDER: AnimProp[] = ["x", "y", "scale", "rotate", "tiltX", "tiltY", "opacity", "blur", "mask"];
 
 export const TRIGGERS: { value: AnimTrigger; label: string; hint: string }[] = [
   { value: "view", label: "Scrolls into view", hint: "Plays when the block comes on screen." },
@@ -144,6 +146,55 @@ export const ANIMATION_PRESETS: { id: string; label: string; make: () => Omit<Bl
   { id: "hover-grow", label: "Grow on hover", make: () => ({ name: "Grow on hover", trigger: "hover", duration: 500, tracks: [track("scale", k(0, 100), k(1, 108, "spring(170,12)"))] }) },
   { id: "hover-cutout", label: "Cutout grows on hover", make: () => ({ name: "Cutout on hover", trigger: "hover", duration: 700, mask: { shape: "circle", x: 50, y: 50 }, tracks: [track("mask", k(0, 45), k(1, 100, "ease-in-out"))] }) },
   { id: "hover-wiggle", label: "Wiggle on hover", make: () => ({ name: "Wiggle", trigger: "hover", duration: 600, tracks: [track("rotate", k(0, 0), k(0.2, -6, "ease-out"), k(0.45, 5, "ease-in-out"), k(0.7, -3, "ease-in-out"), k(1, 0, "ease-in"))] }) },
+  {
+    id: "feather",
+    label: "Feather fall",
+    make: () => ({
+      name: "Feather fall",
+      trigger: "view",
+      duration: 4200,
+      origin: { x: 50, y: 0 },
+      tracks: [
+        track("opacity", k(0, 0), k(0.12, 100, "ease-out")),
+        track("y", k(0, -320), k(1, 0, "ease-out")),
+        track("x", k(0, 0), k(0.22, 46, "ease-in-out"), k(0.46, -38, "ease-in-out"), k(0.7, 24, "ease-in-out"), k(0.88, -8, "ease-in-out"), k(1, 0, "ease-in-out")),
+        track("rotate", k(0, -18), k(0.22, 14, "ease-in-out"), k(0.46, -12, "ease-in-out"), k(0.7, 7, "ease-in-out"), k(0.88, -3, "ease-in-out"), k(1, 0, "ease-in-out")),
+        track("tiltY", k(0, 30), k(0.3, -20, "ease-in-out"), k(0.6, 12, "ease-in-out"), k(1, 0, "ease-in-out"))
+      ]
+    })
+  },
+  {
+    id: "tumble",
+    label: "Paper tumble",
+    make: () => ({
+      name: "Paper tumble",
+      trigger: "view",
+      duration: 2400,
+      tracks: [
+        track("opacity", k(0, 0), k(0.08, 100, "ease-out")),
+        track("y", k(0, -420), k(1, 0, "cubic-bezier(0.45,0,0.7,1)")),
+        track("x", k(0, -60), k(0.5, 40, "ease-in-out"), k(1, 0, "ease-out")),
+        track("rotate", k(0, -160), k(1, 0, "ease-out")),
+        track("tiltX", k(0, 300), k(1, 0, "ease-out"))
+      ]
+    })
+  },
+  {
+    id: "drop",
+    label: "Drop and bounce",
+    make: () => ({
+      name: "Drop and bounce",
+      trigger: "view",
+      duration: 1300,
+      tracks: [
+        track("opacity", k(0, 0), k(0.1, 100)),
+        track("y", k(0, -500), k(0.55, 0, "ease-in"), k(0.72, -46, "ease-out"), k(0.86, 0, "ease-in"), k(0.94, -12, "ease-out"), k(1, 0, "ease-in")),
+        track("rotate", k(0, -8), k(0.55, 0, "ease-in"), k(0.72, 3, "ease-out"), k(1, 0, "ease-in"))
+      ]
+    })
+  },
+  { id: "hover-tip", label: "Tip back on hover (3D)", make: () => ({ name: "Tip back", trigger: "hover", duration: 600, tracks: [track("tiltX", k(0, 0), k(1, 18, "spring(170,14)")), track("scale", k(0, 100), k(1, 104, "ease-out"))] }) },
+  { id: "swing", label: "Swing (3D)", make: () => ({ name: "Swing", trigger: "loop", duration: 2600, alternate: true, origin: { x: 50, y: 0 }, tracks: [track("tiltY", k(0, -24), k(1, 24, "ease-in-out"))] }) },
   { id: "float", label: "Float", make: () => ({ name: "Float", trigger: "loop", duration: 2400, alternate: true, tracks: [track("y", k(0, 0), k(1, -14, "ease-in-out"))] }) },
   { id: "pulse", label: "Pulse", make: () => ({ name: "Pulse", trigger: "loop", duration: 1400, alternate: true, tracks: [track("scale", k(0, 100), k(1, 106, "ease-in-out"))] }) },
   { id: "spin", label: "Spin", make: () => ({ name: "Spin", trigger: "loop", duration: 6000, tracks: [track("rotate", k(0, 0), k(1, 360, "linear"))] }) },

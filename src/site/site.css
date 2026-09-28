@@ -1824,6 +1824,8 @@ a.b-gallery-item:hover img {
 @property --fw-y { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @property --fw-scale { syntax: "<number>"; inherits: false; initial-value: 1; }
 @property --fw-rotate { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --fw-tx { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --fw-ty { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 @property --fw-opacity { syntax: "<number>"; inherits: false; initial-value: 1; }
 @property --fw-blur { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @property --fw-mask { syntax: "<number>"; inherits: false; initial-value: 100; }
@@ -1831,6 +1833,10 @@ a.b-gallery-item:hover img {
 .fw-js [data-anim-use~="x"], .fw-js [data-anim-use~="y"], [data-anim-live] { translate: var(--fw-x) var(--fw-y); }
 .fw-js [data-anim-use~="scale"], [data-anim-live] { scale: var(--fw-scale); }
 .fw-js [data-anim-use~="rotate"], [data-anim-live] { rotate: var(--fw-rotate); }
+.fw-js [data-anim-use~="tiltX"], .fw-js [data-anim-use~="tiltY"] { transform: perspective(900px) rotateX(var(--fw-tx)) rotateY(var(--fw-ty)); }
+.site-block[data-turn] > :first-child { transform: var(--fw-turn); }
+.site-block[data-turn] > [data-anim-live]:is([data-anim-use~="tiltX"], [data-anim-use~="tiltY"]) { transform: perspective(900px) rotateX(var(--fw-tx)) rotateY(var(--fw-ty)) var(--fw-turn); }
+[data-anim-live]:is([data-anim-use~="tiltX"], [data-anim-use~="tiltY"]) { transform: perspective(900px) rotateX(var(--fw-tx)) rotateY(var(--fw-ty)); }
 .fw-js [data-anim-use~="opacity"], [data-anim-live] { opacity: var(--fw-opacity); }
 .fw-js [data-anim-use~="blur"], [data-anim-live][data-anim-use~="blur"] { filter: blur(var(--fw-blur)); }
 .fw-js [data-anim-mask="circle"], [data-anim-live][data-anim-mask="circle"] {

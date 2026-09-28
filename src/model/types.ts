@@ -28,12 +28,20 @@ export interface Block {
   valign?: "middle" | "bottom";
   overhang?: { top?: number; bottom?: number };
   spot?: string;
+  turn?: BlockTurn;
   props: BlockProps;
+}
+
+export interface BlockTurn {
+  z?: number;
+  x?: number;
+  y?: number;
+  depth?: number;
 }
 
 export type Orientation = "portrait" | "landscape";
 
-export type AnimProp = "x" | "y" | "scale" | "rotate" | "opacity" | "blur" | "mask";
+export type AnimProp = "x" | "y" | "scale" | "rotate" | "tiltX" | "tiltY" | "opacity" | "blur" | "mask";
 
 export interface AnimKey {
   t: number;
