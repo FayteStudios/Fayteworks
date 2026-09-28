@@ -14,7 +14,7 @@ export function shellOf(page: Page): PageShell {
 }
 
 export function isCardShell(type: ShellType): boolean {
-  return type === "cardRiver" || type === "cardGrid";
+  return type.startsWith("card");
 }
 
 export function sectionTitle(section: Section): string {
