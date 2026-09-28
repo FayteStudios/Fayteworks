@@ -71,10 +71,35 @@ export function formatFromPreset(preset: DesignPreset): DesignFormat {
   return { kind: preset.group === "Print" ? "print" : "social", preset: preset.id, width: preset.width, height: preset.height, unit: preset.unit, bleed: preset.bleed, folds: preset.folds };
 }
 
+function sheetPadding(format: DesignFormat): number {
+  const { bleed, scale } = sheetSize(format);
+  return Math.round(bleed + (format.kind === "print" ? (10 * unitPx("mm") * scale) / unitPx(format.unit) : 64));
+}
+
 export function createSheet(format: DesignFormat, name: string): Section {
-  const { bleed } = sheetSize(format);
-  const padding = Math.round(bleed + (format.kind === "print" ? (10 * unitPx("mm") * sheetSize(format).scale) / unitPx(format.unit) : 64));
+  const padding = sheetPadding(format);
   return createSection(name, [], { paddingY: padding, minRows: sheetRows(format, padding), background: "var(--bg)" });
+}
+
+export const DEFAULT_BLEED: Record<DesignFormat["unit"], number> = { mm: 3, in: 0.125, px: 0 };
+
+export function customPreset(width: number, height: number, unit: DesignFormat["unit"], label = "Custom size"): DesignPreset {
+  return { id: "custom", label, group: unit === "px" ? "Social" : "Print", width, height, unit, bleed: DEFAULT_BLEED[unit], folds: 0, sheets: 1 };
+}
+
+export function resizeDesign(page: Page, width: number, height: number, unit: DesignFormat["unit"], preset = "custom") {
+  const old = page.design;
+  if (!old) return;
+  const kind = unit === "px" ? "social" : "print";
+  const bleed = kind !== old.kind || unit !== old.unit ? DEFAULT_BLEED[unit] : old.bleed;
+  const from = DESIGN_PRESETS.find((p) => p.id === preset);
+  const next: DesignFormat = { ...old, kind, preset, width, height, unit, bleed: from ? from.bleed : bleed, folds: from ? from.folds : old.folds };
+  page.design = next;
+  const padding = sheetPadding(next);
+  for (const section of page.sections) {
+    section.settings.paddingY = padding;
+    section.settings.minRows = sheetRows(next, padding);
+  }
 }
 
 export function createDesignPage(site: Site, preset: DesignPreset, title: string, from: Section[] = []): Page {

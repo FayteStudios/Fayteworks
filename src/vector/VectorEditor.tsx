@@ -1463,6 +1463,11 @@ export default function VectorEditor({
                           <button disabled={!pinfo.canBreak} title="Split the path at the selected points" onClick={() => engine!.breakAtPoints()}>
                             Break here
                           </button>
+                          {pinfo.between && (
+                            <button title="Remove the line between the two selected points (Delete)" onClick={() => engine!.deleteSelection()}>
+                              Delete the line between
+                            </button>
+                          )}
                         </div>
                       </>
                     )}

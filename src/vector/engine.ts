@@ -39,6 +39,7 @@ export interface PathInfo {
   curve: boolean;
   canJoin: boolean;
   canBreak: boolean;
+  between: boolean;
 }
 
 export interface HistoryRow {
@@ -556,6 +557,7 @@ export class DrawingEngine {
       imported = null;
     }
     if (!imported) return;
+    if (this.box.x || this.box.y) imported.translate(new this.scope.Point(this.box.x, this.box.y));
     let kids = imported.children ? [...imported.children].filter((k) => !k.clipMask) : [imported];
     while (kids.length === 1 && kids[0] instanceof this.scope.Group && !kids[0].name && !kids[0].clipped && !Object.keys(kids[0].data ?? {}).length) kids = [...kids[0].children];
     for (const kid of kids) {
@@ -787,9 +789,18 @@ export class DrawingEngine {
     return this.scope.view.zoom;
   }
 
+  private fitted: "box" | "all" | null = null;
+
   resize(width: number, height: number) {
-    this.scope.view.viewSize = new this.scope.Size(width, height);
-    this.refresh();
+    const view = this.scope.view;
+    const center = view.center;
+    view.viewSize = new this.scope.Size(width, height);
+    if (this.fitted === "box") this.fit();
+    else if (this.fitted === "all") this.fitAll();
+    else {
+      view.center = center;
+      this.refresh();
+    }
   }
 
   zoomTo(zoom: number, anchor?: paper.Point) {
@@ -801,6 +812,7 @@ export class DrawingEngine {
     view.zoom = z;
     const after = view.viewToProject(viewPoint);
     view.center = view.center.add(before.subtract(after));
+    this.fitted = null;
     this.callbacks.onZoom(z);
     this.refresh();
   }
@@ -812,6 +824,7 @@ export class DrawingEngine {
     const all = this.boards.map((b) => new this.scope.Rectangle(b.x, b.y, b.w, b.h)).reduce((a, b) => a.unite(b), new this.scope.Rectangle(this.box.x, this.box.y, this.box.w, this.box.h));
     view.zoom = Math.max(0.05, Math.min((width - 80) / all.width, (height - 80) / all.height));
     view.center = all.center;
+    this.fitted = "all";
     this.callbacks.onZoom(view.zoom);
     this.refresh();
   }
@@ -867,6 +880,7 @@ export class DrawingEngine {
     const z = Math.min((width - 80) / this.box.w, (height - 80) / this.box.h);
     view.zoom = Math.max(0.05, z);
     view.center = new this.scope.Point(this.box.x + this.box.w / 2, this.box.y + this.box.h / 2);
+    this.fitted = "box";
     this.callbacks.onZoom(view.zoom);
     this.refresh();
   }
@@ -882,6 +896,7 @@ export class DrawingEngine {
       const dx = event.shiftKey ? event.deltaY : event.deltaX;
       const dy = event.shiftKey ? 0 : event.deltaY;
       view.center = view.center.add(new this.scope.Point(dx, dy).divide(view.zoom));
+      this.fitted = null;
       this.refresh();
     }
   }
@@ -1859,6 +1874,7 @@ export class DrawingEngine {
       if (mode === "pan") {
         const native = (e as unknown as { event: MouseEvent }).event;
         view.center = view.center.subtract(new this.scope.Point(native.movementX, native.movementY).divide(view.zoom));
+        this.fitted = null;
         this.refresh();
         return;
       }
@@ -2371,6 +2387,13 @@ export class DrawingEngine {
       this.deleteCurve();
       return;
     }
+    const between = this.curveBetweenNodes();
+    if (this.tool === "direct" && between) {
+      this.curve = between;
+      this.nodes = [];
+      this.deleteCurve();
+      return;
+    }
     if (this.tool === "direct" && this.nodes.length) {
       for (const s of this.nodes) {
         const path = s.path;
@@ -2389,6 +2412,18 @@ export class DrawingEngine {
     this.selection = [];
     this.key = null;
     this.commit("", "Delete");
+  }
+
+  curveBetweenNodes(): paper.Curve | null {
+    if (this.nodes.length !== 2) return null;
+    const [a, b] = this.nodes;
+    const path = a.path;
+    if (!path || path !== b.path) return null;
+    const n = path.segments.length;
+    const [i, j] = [a.index, b.index].sort((x, y) => x - y);
+    if (j - i === 1) return path.curves[i] ?? null;
+    if (path.closed && i === 0 && j === n - 1) return path.curves[n - 1] ?? null;
+    return null;
   }
 
   deleteCurve() {
@@ -2660,7 +2695,8 @@ export class DrawingEngine {
       pointType: this.pointType(),
       curve: Boolean(this.curve?.path),
       canJoin: (this.tool === "direct" && ends.length === 2) || this.selection.some((i) => i instanceof this.scope.Path && !i.closed),
-      canBreak: this.nodes.some((s) => s.path && (s.path.closed || (!s.isFirst() && !s.isLast())))
+      canBreak: this.nodes.some((s) => s.path && (s.path.closed || (!s.isFirst() && !s.isLast()))),
+      between: Boolean(this.curveBetweenNodes())
     };
   }
 

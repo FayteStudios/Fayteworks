@@ -6722,3 +6722,63 @@ body:has(.focus-tool-panel--draw, .focus-tool-panel--code, .focus-tool-panel.is-
   color: var(--ui-text);
   font: inherit;
 }
+
+.size-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.size-fields-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.size-fields-row label {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ui-muted);
+}
+
+.size-fields-row input {
+  width: 100%;
+}
+
+.size-fields-swap {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: none;
+  color: var(--ui-text);
+  cursor: pointer;
+}
+
+.designs-home-custom {
+  max-width: 340px;
+}
+
+.design-size {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.design-size summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.design-size[open] summary {
+  margin-bottom: 8px;
+}
+
+.design-size[open] {
+  margin-bottom: 10px;
+}

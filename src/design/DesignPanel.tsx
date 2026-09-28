@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { DESIGN_PRESETS, describeSize, sheetSize, unitPx } from "../model/design";
+import { DESIGN_PRESETS, describeSize, resizeDesign, sheetSize, unitPx } from "../model/design";
+import { SizeFields } from "./SizeFields";
 import { findPage } from "../model/ops";
 import type { DesignFormat, Page } from "../model/types";
 import { useEditor } from "../state/store";
@@ -67,6 +68,22 @@ export function DesignPanel({ page }: { page: Page & { design: DesignFormat } })
         {preset?.label ?? "Custom size"}: {describeSize(d)}
         {d.folds ? `, ${d.folds === 2 ? "folds in three" : "folds in half"}` : ""}. Each sheet is a section; guides show the trim line (red), the safe area (blue){d.folds ? " and the folds (green)" : ""}.
       </p>
+      <details className="design-size">
+        <summary>Change the size</summary>
+        <SizeFields
+          key={`${d.width}x${d.height}${d.unit}`}
+          presets
+          start={{ width: d.width, height: d.height, unit: d.unit, preset: preset ? d.preset : "custom" }}
+          action="Change size"
+          onApply={(w, h, unit, id) =>
+            commit((draft) => {
+              const p = findPage(draft, page.id);
+              if (p) resizeDesign(p, w, h, unit, id);
+            })
+          }
+        />
+        <span className="field-hint">Everything keeps its place across the width; the sheet gets taller or shorter. Pieces below the new bottom edge are still there: move them up.</span>
+      </details>
       {print && (
         <label className="field">
           <span className="field-label">Bleed ({d.unit})</span>

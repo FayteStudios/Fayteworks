@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { openDocument } from "../business/DocumentDialog";
 import { Icon } from "../editor/icons";
-import { createDesignPage, DESIGN_PRESETS, describeSize, type DesignPreset } from "../model/design";
+import { createDesignPage, customPreset, DESIGN_PRESETS, describeSize, type DesignPreset } from "../model/design";
+import { SizeFields } from "./SizeFields";
 import type { DesignFormat, Page } from "../model/types";
 import { useEditor } from "../state/store";
 import { designThumbnail } from "./exportDesign";
@@ -68,7 +69,7 @@ export function DesignsHome() {
   }
 
   function create(preset: DesignPreset) {
-    const design = createDesignPage(state.site, preset, preset.label.split(" · ")[0], []);
+    const design = createDesignPage(state.site, preset, preset.id === "custom" ? "Design" : preset.label.split(" · ")[0], []);
     commit((draft) => {
       draft.pages.push(design);
     });
@@ -145,6 +146,12 @@ export function DesignsHome() {
             </div>
           </div>
         ))}
+        <div className="designs-home-group">
+          <h3 className="panel-heading">Your own size</h3>
+          <div className="designs-home-custom">
+            <SizeFields start={{ width: 1000, height: 1000, unit: "px" }} action="Start" onApply={(w, h, unit) => create(customPreset(w, h, unit))} />
+          </div>
+        </div>
         <div className="designs-home-group">
           <h3 className="panel-heading">Documents</h3>
           <div className="designs-home-docs">
