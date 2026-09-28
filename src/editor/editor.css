@@ -5335,3 +5335,83 @@ body.is-resizing-dock-y, body.is-resizing-dock-y * { cursor: row-resize !importa
 @keyframes dot-bounce { 50% { transform: translateY(-3px) scale(1.02, 0.98); } }
 @keyframes dot-pop { from { opacity: 0; transform: translateY(6px) scale(0.96); } }
 @media (prefers-reduced-motion: reduce) { .dot-helper * { animation: none !important; } }
+
+.ve-menu {
+  position: relative;
+}
+
+.ve-menu summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.ve-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.ve-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-panel);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+.ve-stops {
+  height: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 7px;
+}
+
+.ve-stop input[type="color"] {
+  width: 34px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: none;
+}
+
+.ve-stop .ve-num {
+  flex: 1;
+}
+
+.ve-fx-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+  padding-left: 22px;
+}
+
+.ve-fx-fields input[type="color"] {
+  width: 100%;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: none;
+}
+
+.ve-fx-fields .ve-range {
+  grid-column: span 2;
+}
+
+.ve-canvas[data-tool="curvature"],
+.ve-canvas[data-tool="knife"],
+.ve-canvas[data-tool="eraser"],
+.ve-canvas[data-tool="gradient"] {
+  cursor: crosshair;
+}
+
+.ve-ends select {
+  width: 100%;
+}

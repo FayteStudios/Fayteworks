@@ -1,7 +1,11 @@
 import paper from "paper/dist/paper-core";
+import { offset as offsetPath, offsetStroke } from "paperjs-offset";
 import { TRACE_MAX_SIDE, traceImageData, type TraceOptions } from "./trace";
+import { exportEffects, hasEffects, effectsReach, installEffects, type Effects } from "./effects";
+import { layoutEnds, type Ends } from "./ends";
+import { outlineText } from "./outlines";
 
-export type Tool = "select" | "direct" | "pen" | "pencil" | "scissors" | "rect" | "ellipse" | "polygon" | "star" | "shape" | "line" | "arc" | "spiral" | "text" | "eyedropper" | "hand";
+export type Tool = "select" | "direct" | "pen" | "curvature" | "pencil" | "scissors" | "knife" | "eraser" | "rect" | "ellipse" | "polygon" | "star" | "shape" | "line" | "arc" | "spiral" | "text" | "eyedropper" | "gradient" | "hand";
 export type BooleanOp = "unite" | "subtract" | "intersect" | "exclude";
 export type AlignOp = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
 export type ShapeKind = "triangle" | "arrow" | "bubble" | "heart" | "cloud" | "gear" | "donut" | "pie";
@@ -38,11 +42,32 @@ export interface HistoryRow {
   state: "past" | "current" | "future";
 }
 
+export interface GradientStop {
+  color: string;
+  offset: number;
+}
+
 export interface Fill {
   kind: "none" | "solid" | "linear" | "radial";
   color: string;
   color2: string;
   angle: number;
+  stops?: GradientStop[];
+  origin?: [number, number];
+  destination?: [number, number];
+}
+
+export type BlendMode = "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "color-dodge" | "color-burn" | "hard-light" | "soft-light" | "difference" | "exclusion" | "hue" | "saturation" | "color" | "luminosity";
+
+export interface LiveShapeInfo {
+  kind: "polygon" | "star";
+  count: number;
+  inner: number;
+}
+
+export interface Guides {
+  x: number[];
+  y: number[];
 }
 
 export interface StyleInfo {
@@ -57,6 +82,7 @@ export interface StyleInfo {
   miterLimit: number;
   fillRule: "nonzero" | "evenodd";
   opacity: number;
+  blendMode: BlendMode;
 }
 
 export interface TextInfo {
@@ -98,6 +124,9 @@ export interface EngineCallbacks {
 }
 
 const ACCENT = "#4f8cff";
+const SNAP_COLOUR = "#e0457b";
+const GUIDE_COLOUR = "#16b2d6";
+const RULER = 18;
 const HANDLE = 8;
 const HISTORY_LIMIT = 100;
 
@@ -109,6 +138,18 @@ function viewBoxOf(svg: string): { x: number; y: number; w: number; h: number } 
   const w = parseFloat(root.getAttribute("width") ?? "");
   const h = parseFloat(root.getAttribute("height") ?? "");
   return { x: 0, y: 0, w: w > 0 ? w : 400, h: h > 0 ? h : 300 };
+}
+
+function guidesOf(svg: string): Guides {
+  const match = svg.match(/data-fw-guides="([^"]*)"/);
+  if (!match) return { x: [], y: [] };
+  try {
+    const parsed = JSON.parse(match[1].replace(/&quot;/g, '"'));
+    const list = (v: unknown) => (Array.isArray(v) ? v.filter((n): n is number => typeof n === "number" && Number.isFinite(n)) : []);
+    return { x: list(parsed.x), y: list(parsed.y) };
+  } catch {
+    return { x: [], y: [] };
+  }
 }
 
 const INKSCAPE_NS = "http://www.inkscape.org/namespaces/inkscape";
@@ -387,8 +428,14 @@ export class DrawingEngine {
     turns: 3,
     shape: "heart" as ShapeKind,
     ref: "tl" as RefPoint,
-    alignTo: "selection" as "selection" | "board"
+    alignTo: "selection" as "selection" | "board",
+    smartGuides: true,
+    snapPoints: true,
+    angleStep: 45,
+    rulers: false,
+    eraser: 12
   };
+  guides: Guides = { x: [], y: [] };
   defaults: { fill: string | null; stroke: string | null; strokeWidth: number } = { fill: "#d9d4cc", stroke: null, strokeWidth: 2 };
   lineDefaults: { stroke: string; strokeWidth: number } = { stroke: "#1d1b18", strokeWidth: 2 };
   fonts: { heading: string; body: string } = { heading: "Georgia, serif", body: "system-ui, sans-serif" };
@@ -405,8 +452,13 @@ export class DrawingEngine {
   private measureTarget: paper.Rectangle | null = null;
   private altDown = false;
   private pointer: paper.Point | null = null;
+  private snapCache: { xs: number[]; ys: number[]; points: { point: paper.Point; segment: paper.Segment }[]; paths: paper.Path[] } | null = null;
+  private snapLines: [paper.Point, paper.Point][] = [];
+  private snapMark: paper.Point | null = null;
   private spaceDown = false;
   private penPath: paper.Path | null = null;
+  private penCorners = new Set<number>();
+  private tempStroke: paper.Path | null = null;
   private previewPath: paper.Path | null = null;
   private destroyed = false;
   private preserved: Preserved = { rootAttributes: [], nodes: [], layerIds: new Set(), labels: new Map() };
@@ -431,7 +483,9 @@ export class DrawingEngine {
     this.outlineLayer.locked = true;
     this.ui = new this.scope.Layer();
     patchTextSpacing(this.scope);
+    installEffects(this.scope);
     this.box = viewBoxOf(svg);
+    this.guides = guidesOf(svg);
     this.load(svg);
     this.drawBoard();
     this.art.activate();
@@ -468,6 +522,7 @@ export class DrawingEngine {
       this.art.addChild(kid);
     }
     for (const group of this.textPathGroups()) this.layoutTextPath(group);
+    for (const group of this.endsGroups()) layoutEnds(this.scope, group);
     for (const text of this.art.getItems({ recursive: true, class: this.scope.PointText }) as paper.PointText[]) {
       if (text.data.leading) text.leading = text.data.leading;
       delete text.data.leading;
@@ -512,6 +567,8 @@ export class DrawingEngine {
     for (const child of Array.from(layer.childNodes)) root.appendChild(doc.importNode(child, true));
     this.exportTextLines(doc, root);
     this.exportTextPaths(doc, root);
+    exportEffects(doc, root);
+    if (this.guides.x.length || this.guides.y.length) root.setAttribute("data-fw-guides", JSON.stringify(this.guides));
     this.restorePreserved(doc, root);
     const out = new XMLSerializer().serializeToString(root);
     this.applyDim();
@@ -549,7 +606,7 @@ export class DrawingEngine {
     this.clearSelectionFlags();
     this.restoreDim();
     this.art.opacity = 1;
-    const json = JSON.stringify({ box: this.box, art: this.art.exportJSON({ asString: false }), ref: this.reference ? this.reference.matrix.values : null });
+    const json = JSON.stringify({ box: this.box, guides: this.guides, art: this.art.exportJSON({ asString: false }), ref: this.reference ? this.reference.matrix.values : null });
     this.art.opacity = this.outlineView ? 0 : 1;
     this.applyDim();
     return json;
@@ -557,6 +614,7 @@ export class DrawingEngine {
 
   commit(key = "", label?: string) {
     for (const group of this.textPathGroups()) this.layoutTextPath(group);
+    for (const group of this.endsGroups()) layoutEnds(this.scope, group);
     if (key !== "simplify") this.simplifyBase = null;
     this.colorCache = null;
     const now = Date.now();
@@ -570,9 +628,10 @@ export class DrawingEngine {
   }
 
   private restore(snap: string) {
-    const { box, art, ref } = JSON.parse(snap);
+    const { box, art, ref, guides } = JSON.parse(snap);
     if (ref && this.reference) this.reference.matrix = new this.scope.Matrix(ref);
     this.box = box;
+    this.guides = guides ?? { x: [], y: [] };
     this.drawBoard();
     this.dimmed = [];
     this.isolated = null;
@@ -815,6 +874,9 @@ export class DrawingEngine {
     const z = this.scope.view.zoom;
     this.drawGrid();
     this.drawOutlines();
+    this.ui.activate();
+    this.drawGuides(z);
+    this.art.activate();
     if (this.tool === "direct") {
       for (const item of this.selection) {
         item.selected = true;
@@ -850,6 +912,12 @@ export class DrawingEngine {
       if (this.measureTarget) this.drawMeasure(b, this.measureTarget, z);
       this.art.activate();
     }
+    this.ui.activate();
+    if (this.tempStroke) this.ui.addChild(this.tempStroke);
+    if (this.tool === "gradient") this.drawGradientHandles(z);
+    this.drawSnapLines(z);
+    if (this.options.rulers) this.drawRulers(z);
+    this.art.activate();
     if (!quiet) this.callbacks.onChange();
   }
 
@@ -889,6 +957,7 @@ export class DrawingEngine {
       item.opacity = 1;
       item.blendMode = "normal";
       item.shadowColor = null;
+      if (item.data?.effects) delete item.data.effects;
       if (item instanceof this.scope.Group && item.clipped) item.clipped = false;
       if (item.clipMask) item.clipMask = false;
       if (item instanceof this.scope.Raster) {
@@ -1001,14 +1070,63 @@ export class DrawingEngine {
   }
 
   private snap(point: paper.Point): paper.Point {
-    if (!this.options.snap) return point;
-    const g = this.options.grid;
-    return new this.scope.Point(Math.round(point.x / g) * g, Math.round(point.y / g) * g);
+    this.snapLines = [];
+    this.snapMark = null;
+    if (!this.options.snap && !this.options.smartGuides && !this.options.snapPoints) return point;
+    if (!this.snapCache) this.buildSnap(this.tool === "select" ? this.selection : []);
+    const cache = this.snapCache!;
+    const tol = 6 / this.scope.view.zoom;
+    if (this.options.snapPoints) {
+      let best: paper.Point | null = null;
+      let bd = tol;
+      for (const c of cache.points) {
+        if (this.nodes.includes(c.segment)) continue;
+        const d = c.point.getDistance(point);
+        if (d < bd) {
+          bd = d;
+          best = c.point;
+        }
+      }
+      if (best) {
+        this.snapMark = best;
+        return best.clone();
+      }
+      const near = this.nearestOutline(point, tol, cache.paths.filter((p) => !this.nodes.some((n) => n.path === p)));
+      if (near) {
+        this.snapMark = near.location.point;
+        return near.location.point.clone();
+      }
+    }
+    let x = point.x;
+    let y = point.y;
+    let gotX = false;
+    let gotY = false;
+    if (this.options.smartGuides) {
+      const sx = this.nearestValue(cache.xs, x, tol);
+      const sy = this.nearestValue(cache.ys, y, tol);
+      if (sx !== null) {
+        x = sx;
+        gotX = true;
+        this.snapGuideLine("x", x);
+      }
+      if (sy !== null) {
+        y = sy;
+        gotY = true;
+        this.snapGuideLine("y", y);
+      }
+    }
+    if (this.options.snap) {
+      const g = this.options.grid;
+      if (!gotX) x = Math.round(x / g) * g;
+      if (!gotY) y = Math.round(y / g) * g;
+    }
+    return new this.scope.Point(x, y);
   }
 
   private constrain(from: paper.Point, to: paper.Point): paper.Point {
     const v = to.subtract(from);
-    const angle = Math.round(v.angle / 45) * 45;
+    const step = Math.max(1, this.options.angleStep);
+    const angle = Math.round(v.angle / step) * step;
     return from.add(new this.scope.Point({ angle, length: v.length }));
   }
 
@@ -1052,7 +1170,7 @@ export class DrawingEngine {
   private setupTool() {
     const tool = new this.scope.Tool();
     tool.minDistance = 0;
-    let mode: "none" | "move" | "scale" | "rotate" | "marquee" | "pan" | "shape" | "node" | "handle" | "bend" | "pencil" | "pen-drag" = "none";
+    let mode: "none" | "move" | "scale" | "rotate" | "marquee" | "pan" | "shape" | "node" | "handle" | "bend" | "pencil" | "pen-drag" | "guide" | "knife" | "gradient" = "none";
     let start: paper.Point;
     let last: paper.Point;
     let handleName = "";
@@ -1065,6 +1183,15 @@ export class DrawingEngine {
     let copied = false;
     let rotated = 0;
     let keyCandidate: paper.Item | null = null;
+    let guideDrag: { axis: "x" | "y"; index: number } | null = null;
+    let gradDrag: string | null = null;
+    let grabbed: { segment: paper.Segment; from: paper.Point } | null = null;
+    const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+    const along = (g: { origin: paper.Point; destination: paper.Point }, point: paper.Point) => {
+      const d = g.destination.subtract(g.origin);
+      const len2 = d.x * d.x + d.y * d.y;
+      return len2 ? clamp01(point.subtract(g.origin).dot(d) / len2) : 0;
+    };
     let lastClick = { at: 0, point: new this.scope.Point(0, 0) };
 
     const hitOptions = (extra: object = {}) => ({ fill: true, stroke: true, segments: true, tolerance: 5 / this.scope.view.zoom, ...extra });
@@ -1081,8 +1208,24 @@ export class DrawingEngine {
       copied = false;
       rotated = 0;
       keyCandidate = null;
+      grabbed = null;
+      this.snapCache = null;
+      this.snapLines = [];
+      this.snapMark = null;
       if (this.spaceDown || this.tool === "hand" || native?.button === 1) {
         mode = "pan";
+        return;
+      }
+      const ruler = this.inRuler(e.point);
+      if (ruler === "corner") {
+        mode = "none";
+        return;
+      }
+      if (ruler) {
+        this.guides[ruler].push(ruler === "x" ? e.point.x : e.point.y);
+        guideDrag = { axis: ruler, index: this.guides[ruler].length - 1 };
+        mode = "guide";
+        this.refresh();
         return;
       }
       const p = this.snap(e.point);
@@ -1137,8 +1280,15 @@ export class DrawingEngine {
               copied = true;
             }
             startBounds = this.selectionBounds();
+            this.buildSnap(this.selection);
             mode = "move";
           } else {
+            const guide = this.guideAt(e.point);
+            if (guide) {
+              guideDrag = guide;
+              mode = "guide";
+              return;
+            }
             if (!mods(e).shift) this.select([]);
             mode = "marquee";
           }
@@ -1174,6 +1324,7 @@ export class DrawingEngine {
                 }
                 if (mods(e).shift) this.nodes = this.nodes.includes(hit.segment) ? this.nodes.filter((s) => s !== hit.segment) : [...this.nodes, hit.segment];
                 else if (!this.nodes.includes(hit.segment)) this.nodes = [hit.segment];
+                grabbed = { segment: hit.segment, from: hit.segment.point.clone() };
                 mode = "node";
                 this.refresh();
                 return;
@@ -1208,9 +1359,113 @@ export class DrawingEngine {
             mode = "none";
             this.refresh();
           } else {
+            const guide = this.guideAt(e.point);
+            if (guide) {
+              guideDrag = guide;
+              mode = "guide";
+              return;
+            }
             if (!mods(e).shift) this.select([]);
             mode = "marquee";
           }
+          return;
+        }
+        case "knife":
+        case "eraser": {
+          const knife = this.tool === "knife";
+          this.tempStroke = new this.scope.Path({
+            segments: [e.point],
+            strokeColor: knife ? new this.scope.Color(SNAP_COLOUR) : new this.scope.Color(0.94, 0.31, 0.43, 0.35),
+            strokeWidth: knife ? 1.5 / z : this.options.eraser,
+            strokeCap: "round",
+            strokeJoin: "round",
+            insert: false
+          });
+          mode = "knife";
+          this.refresh(true);
+          return;
+        }
+        case "curvature": {
+          const tol = 8 / z;
+          if (this.penPath && this.penPath.segments.length > 2 && this.penPath.firstSegment.point.getDistance(e.point) < tol) {
+            this.penPath.closed = true;
+            if (!this.penPath.fillColor && this.defaults.fill) this.penPath.fillColor = new this.scope.Color(this.defaults.fill);
+            this.smoothCurvature(this.penPath);
+            this.finishPen();
+            mode = "none";
+            return;
+          }
+          if (!this.penPath) {
+            const end = this.openEndAt(e.point, tol, null);
+            if (end) {
+              if (end.first) end.path.reverse();
+              this.penPath = end.path;
+              this.penCorners = new Set(end.path.segments.filter((s) => !s.hasHandles()).map((s) => s.index));
+              this.select([]);
+              mode = "none";
+              return;
+            }
+            this.penPath = new this.scope.Path();
+            this.applyDefaults(this.penPath, true);
+            this.adopt(this.penPath);
+            this.penCorners = new Set();
+          }
+          const seg = this.penPath.add(p) as paper.Segment;
+          if (mods(e).alt) this.penCorners.add(seg.index);
+          this.smoothCurvature(this.penPath);
+          this.previewPath = null;
+          mode = "none";
+          this.refresh();
+          return;
+        }
+        case "gradient": {
+          const uiHit = this.ui.hitTest(e.point, { fill: true, stroke: true, tolerance: 4 / z });
+          const handle = uiHit?.item.data.handle as string | undefined;
+          const target = this.gradientTarget();
+          if (handle?.startsWith("g-") && target) {
+            const g = this.gradientOf(target);
+            if (handle.startsWith("g-stop-") && mods(e).alt && g && g.stops.length > 2) {
+              g.stops.splice(Number(handle.slice(7)), 1);
+              this.applyGradient(target, g);
+              this.commit("", "Gradient");
+              mode = "none";
+              return;
+            }
+            gradDrag = handle;
+            mode = "gradient";
+            return;
+          }
+          const g = target ? this.gradientOf(target) : null;
+          if (double && target && g) {
+            const t = along(g, e.point);
+            const proj = g.origin.add(g.destination.subtract(g.origin).multiply(t));
+            if (proj.getDistance(e.point) < 8 / z) {
+              g.stops.push({ color: this.mixAt(g.stops, t), offset: t });
+              this.applyGradient(target, g);
+              this.commit("", "Gradient");
+              mode = "none";
+              return;
+            }
+          }
+          const hit = this.art.hitTest(e.point, hitOptions({ match: inScopeHit }));
+          if (hit) {
+            const item = hit.item.parent instanceof this.scope.CompoundPath ? hit.item.parent : hit.item;
+            if (!(item instanceof this.scope.PathItem || item instanceof this.scope.PointText)) {
+              mode = "none";
+              return;
+            }
+            if (!this.selection.includes(item)) this.select([item]);
+            gradDrag = "g-new";
+            mode = "gradient";
+            return;
+          }
+          if (target) {
+            gradDrag = "g-new";
+            mode = "gradient";
+            return;
+          }
+          this.select([]);
+          mode = "none";
           return;
         }
         case "scissors": {
@@ -1309,17 +1564,47 @@ export class DrawingEngine {
         this.refresh();
         return;
       }
-      const p = this.snap(e.point);
       changed = true;
+      if (mode === "guide" && guideDrag) {
+        const g = this.options.grid;
+        const raw = guideDrag.axis === "x" ? e.point.x : e.point.y;
+        this.guides[guideDrag.axis][guideDrag.index] = this.options.snap ? Math.round(raw / g) * g : Math.round(raw * 100) / 100;
+        this.refresh();
+        return;
+      }
+      if (mode === "knife" && this.tempStroke) {
+        if (mods(e).shift) {
+          this.tempStroke.removeSegments(1);
+          this.tempStroke.add(e.point);
+        } else this.tempStroke.add(e.point);
+        this.refresh(true);
+        return;
+      }
+      if (mode === "gradient" && gradDrag) {
+        const target = this.gradientTarget();
+        if (!target) return;
+        const p2 = this.snap(e.point);
+        if (gradDrag === "g-new") {
+          if (e.point.getDistance(start) < 3 / view.zoom) return;
+          const base = this.startGradient(target);
+          this.applyGradient(target, { ...base, origin: this.snap(start), destination: p2 });
+        } else {
+          const g = this.gradientOf(target);
+          if (!g) return;
+          if (gradDrag === "g-origin") g.origin = p2;
+          else if (gradDrag === "g-dest") g.destination = p2;
+          else g.stops[Number(gradDrag.slice(7))].offset = along(g, e.point);
+          this.applyGradient(target, g, false);
+        }
+        this.refresh();
+        return;
+      }
+      const p = this.snap(e.point);
       if (mode === "move") {
         let target = e.point.subtract(start);
         if (mods(e).shift) target = Math.abs(target.x) > Math.abs(target.y) ? new this.scope.Point(target.x, 0) : new this.scope.Point(0, target.y);
         let delta = target.subtract(last.subtract(start));
-        if (this.options.snap) {
-          const b = this.selectionBounds()!;
-          const snapped = this.snap(b.topLeft.add(delta));
-          delta = snapped.subtract(b.topLeft);
-        }
+        if (startBounds) delta = this.snapMove(delta, startBounds, last.subtract(start));
         for (const item of this.selection) item.translate(delta);
         last = last.add(delta);
         this.refresh();
@@ -1350,7 +1635,11 @@ export class DrawingEngine {
         marquee = new this.scope.Path.Rectangle({ from: start, to: e.point, strokeColor: ACCENT, strokeWidth: 1 / view.zoom, fillColor: new this.scope.Color(0.31, 0.55, 1, 0.08) });
         this.art.activate();
       } else if (mode === "node") {
-        const delta = e.point.subtract(last);
+        let delta = e.point.subtract(last);
+        if (grabbed && grabbed.segment.path) {
+          const to = this.snap(grabbed.from.add(e.point.subtract(start)));
+          delta = to.subtract(grabbed.segment.point);
+        }
         for (const s of this.nodes) s.point = s.point.add(delta);
         last = e.point;
         this.refresh();
@@ -1406,6 +1695,39 @@ export class DrawingEngine {
     tool.onMouseUp = (e: paper.ToolEvent) => {
       const finished = mode;
       mode = "none";
+      const hadLines = this.snapLines.length > 0 || this.snapMark !== null;
+      this.snapCache = null;
+      this.snapLines = [];
+      this.snapMark = null;
+      grabbed = null;
+      if (finished === "guide" && guideDrag) {
+        const { axis, index } = guideDrag;
+        guideDrag = null;
+        if (this.inRuler(e.point) || !this.scope.view.bounds.contains(e.point)) this.guides[axis].splice(index, 1);
+        this.commit("", "Guide");
+        return;
+      }
+      if (finished === "knife") {
+        const stroke = this.tempStroke;
+        this.tempStroke = null;
+        if (stroke) {
+          if (this.tool === "knife") this.knife(stroke);
+          else this.erase(stroke);
+        }
+        this.refresh();
+        return;
+      }
+      if (finished === "gradient") {
+        gradDrag = null;
+        const target = this.gradientTarget();
+        const g = target ? this.gradientOf(target) : null;
+        if (changed && target && g) {
+          this.applyGradient(target, g);
+          this.commit("", "Gradient");
+        }
+        return;
+      }
+      if (hadLines && !changed) this.refresh();
       if (finished === "marquee") {
         const area = marquee?.bounds;
         marquee?.remove();
@@ -1474,6 +1796,20 @@ export class DrawingEngine {
       this.pointer = e.point;
       this.altDown = mods(e).alt;
       if (this.tool === "select") this.updateMeasure();
+      if (this.tool === "curvature" && this.penPath) {
+        this.previewPath?.remove();
+        const ghost = this.penPath.clone({ insert: false }) as paper.Path;
+        ghost.add(this.snap(e.point));
+        this.smoothCurvature(ghost);
+        ghost.fillColor = null;
+        ghost.strokeColor = new this.scope.Color(ACCENT);
+        ghost.strokeWidth = 1 / this.scope.view.zoom;
+        ghost.dashArray = [];
+        ghost.data = {};
+        this.ui.addChild(ghost);
+        this.previewPath = ghost;
+        return;
+      }
       if (this.tool !== "pen" || !this.penPath) return;
       this.previewPath?.remove();
       this.ui.activate();
@@ -1559,11 +1895,12 @@ export class DrawingEngine {
       case "polygon":
       case "star": {
         const radius = Math.max(1, to.getDistance(from));
-        item =
-          this.tool === "polygon"
-            ? new this.scope.Path.RegularPolygon({ center: from, sides: Math.max(3, this.options.sides), radius })
-            : new this.scope.Path.Star({ center: from, points: Math.max(3, this.options.points), radius1: radius, radius2: radius * 0.45 });
-        if (!shift) item.rotate(to.subtract(from).angle + 90, from);
+        const shape = this.tool === "polygon" ? { kind: "polygon" as const, count: Math.max(3, this.options.sides), r: radius } : { kind: "star" as const, count: Math.max(3, this.options.points), r: radius, inner: 0.45 };
+        const star = new this.scope.Path({ segments: this.starSegments(shape), closed: true });
+        if (!shift) star.rotate(to.subtract(from).angle + 90, new this.scope.Point(0, 0));
+        star.translate(from);
+        star.data.shape = shape;
+        item = star;
         break;
       }
       case "line":
@@ -2269,13 +2606,17 @@ export class DrawingEngine {
   private fillOf(item: paper.Item): Fill {
     const fillColor = item.fillColor;
     if (fillColor?.gradient) {
-      const stops = fillColor.gradient.stops;
       const { origin, destination } = fillColor as unknown as { origin: paper.Point; destination: paper.Point };
+      const raw = fillColor.gradient.stops;
+      const stops = raw.map((st, i) => ({ color: toHex(st.color) ?? "#000000", offset: st.offset ?? i / Math.max(1, raw.length - 1) })).sort((a, b) => a.offset - b.offset);
       return {
         kind: fillColor.gradient.radial ? "radial" : "linear",
-        color: toHex(stops[0]?.color) ?? "#000000",
-        color2: toHex(stops[stops.length - 1]?.color) ?? "#ffffff",
-        angle: Math.round(destination.subtract(origin).angle)
+        color: stops[0]?.color ?? "#000000",
+        color2: stops[stops.length - 1]?.color ?? "#ffffff",
+        angle: Math.round(destination.subtract(origin).angle),
+        stops,
+        origin: [origin.x, origin.y],
+        destination: [destination.x, destination.y]
       };
     }
     const hex = toHex(fillColor);
@@ -2305,6 +2646,9 @@ export class DrawingEngine {
     target.strokeJoin = src.strokeJoin;
     target.miterLimit = src.miterLimit;
     target.opacity = src.opacity;
+    target.blendMode = src.blendMode;
+    if (src.data?.effects) target.data.effects = JSON.parse(JSON.stringify(src.data.effects));
+    else delete target.data.effects;
     if (target instanceof this.scope.PathItem && src instanceof this.scope.PathItem) target.fillRule = src.fillRule;
     if (target instanceof this.scope.PointText && src instanceof this.scope.PointText) {
       target.fontFamily = src.fontFamily;
@@ -2372,6 +2716,8 @@ export class DrawingEngine {
     const only = selectionOnly && this.selection.length > 0;
     if (only) {
       group.addChildren(this.selection.map((i) => i.clone({ insert: false })));
+      const reach = Math.max(0, ...this.selection.map((i) => effectsReach(i.data?.effects as Effects | undefined)));
+      if (reach) group.insertChild(0, new this.scope.Path.Rectangle({ rectangle: group.strokeBounds.expand(reach * 2), insert: false }));
       if (background) group.insertChild(0, new this.scope.Path.Rectangle({ rectangle: group.strokeBounds, fillColor: background, insert: false }));
     } else {
       group.addChild(new this.scope.Path.Rectangle({ rectangle: this.board.bounds, insert: false }));
@@ -2383,6 +2729,681 @@ export class DrawingEngine {
     this.applyDim();
     this.refresh();
     return new Promise((resolve, reject) => raster.canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("The picture couldn't be made."))), "image/png"));
+  }
+
+  private leafShapes(): paper.PathItem[] {
+    const pool = this.selection.length ? this.selection : this.scopeRoot.children.filter((i) => this.shown(i));
+    const out = new Set<paper.PathItem>();
+    const walk = (item: paper.Item) => {
+      if (item.locked || !item.visible || item.data?.guide || item.clipMask) return;
+      if (item instanceof this.scope.CompoundPath || item instanceof this.scope.Path) out.add(item);
+      else if (item instanceof this.scope.Group && !item.data?.textPath) for (const kid of item.children) walk(kid);
+    };
+    for (const item of pool) walk(item);
+    return [...out];
+  }
+
+  private styled<T extends paper.Item>(piece: T, from: paper.Item): T {
+    const source = new this.scope.Path({ insert: false });
+    source.style = from.style;
+    piece.style = source.style;
+    piece.opacity = from.opacity;
+    piece.blendMode = from.blendMode;
+    if (from.data?.effects) piece.data.effects = JSON.parse(JSON.stringify(from.data.effects));
+    if (piece instanceof this.scope.PathItem && from instanceof this.scope.PathItem) piece.fillRule = from.fillRule;
+    return piece;
+  }
+
+  private splitDisjoint(item: paper.PathItem, from: paper.Item): paper.PathItem[] {
+    const area = (p: paper.PathItem) => Math.abs((p as paper.Path).area ?? 0);
+    if (!(item instanceof this.scope.CompoundPath)) return area(item) > 0.01 ? [this.styled(item, from)] : [];
+    const kids = ([...item.children] as paper.Path[]).filter((k) => Math.abs(k.area) > 0.01).sort((a, b) => Math.abs(b.area) - Math.abs(a.area));
+    const groups: { outer: paper.Path; holes: paper.Path[] }[] = [];
+    for (const kid of kids) {
+      const inside = groups.find((g) => Math.sign(g.outer.area) !== Math.sign(kid.area) && g.outer.contains(kid.interiorPoint));
+      if (inside) inside.holes.push(kid);
+      else groups.push({ outer: kid, holes: [] });
+    }
+    return groups.map((g) => {
+      if (!g.holes.length) return this.styled(g.outer.clone({ insert: false }) as paper.Path, from);
+      return this.styled(new this.scope.CompoundPath({ children: [g.outer, ...g.holes].map((p) => p.clone({ insert: false })), insert: false }), from);
+    });
+  }
+
+  private splitOpenAt(path: paper.Path, offsets: number[]): paper.Path[] {
+    const L = path.length;
+    let list = [...new Set(offsets.map((o) => Math.round(o * 1000) / 1000))].filter((o) => o > 0.01 && o < L - 0.01).sort((a, b) => a - b);
+    if (path.closed) {
+      const all = [...new Set(offsets.map((o) => Math.round(o * 1000) / 1000))].sort((a, b) => a - b);
+      if (!all.length) return [path];
+      path.splitAt(all[0]);
+      const L2 = path.length;
+      list = all
+        .slice(1)
+        .map((o) => o - all[0])
+        .filter((o) => o > 0.01 && o < L2 - 0.01);
+    }
+    const pieces: paper.Path[] = [path];
+    for (const o of [...list].reverse()) {
+      const tail = path.splitAt(o);
+      if (tail && tail !== path) pieces.push(tail);
+    }
+    return pieces;
+  }
+
+  private knifeRegion(stroke: paper.Path, reach: number): paper.Path {
+    const region = stroke.clone({ insert: false }) as paper.Path;
+    const first = stroke.firstSegment.point;
+    const last = stroke.lastSegment.point;
+    const dStart = (stroke.getTangentAt(0) ?? last.subtract(first)).normalize();
+    const dEnd = (stroke.getTangentAt(stroke.length) ?? last.subtract(first)).normalize();
+    const a = first.subtract(dStart.multiply(reach));
+    const b = last.add(dEnd.multiply(reach));
+    const chord = b.subtract(a).normalize();
+    const n = new this.scope.Point(-chord.y, chord.x).multiply(reach);
+    region.insert(0, a);
+    region.add(b, b.add(n), a.add(n));
+    region.closed = true;
+    return region;
+  }
+
+  knife(stroke: paper.Path) {
+    if (this.refAdjust || stroke.segments.length < 2 || stroke.length < 1) return;
+    const targets = this.leafShapes().filter((t) => t.bounds.intersects(stroke.bounds.expand(1)));
+    const reach = (this.board.bounds.width + this.board.bounds.height + stroke.bounds.width + stroke.bounds.height) * 4;
+    const region = this.knifeRegion(stroke, reach);
+    const made: paper.Item[] = [];
+    for (const target of targets) {
+      const crossings = target instanceof this.scope.CompoundPath ? (target.children as paper.Path[]).flatMap((c) => c.getIntersections(stroke)) : target.getIntersections(stroke);
+      if (!crossings.length) continue;
+      if (target instanceof this.scope.Path && !target.closed && !target.fillColor) {
+        const pieces = this.splitOpenAt(target, crossings.map((c) => c.offset));
+        pieces.slice(1).forEach((p) => (p.name = ""));
+        made.push(...pieces);
+        continue;
+      }
+      const inside = target.intersect(region, { insert: false }) as paper.PathItem;
+      const outside = target.subtract(region, { insert: false }) as paper.PathItem;
+      const pieces = [...this.splitDisjoint(inside, target), ...this.splitDisjoint(outside, target)];
+      if (pieces.length < 2) continue;
+      pieces.forEach((p, i) => {
+        p.name = i === 0 ? target.name : "";
+        p.insertAbove(target);
+      });
+      target.remove();
+      made.push(...pieces);
+    }
+    if (!made.length) return;
+    this.select(made.filter((m) => m.parent === this.scopeRoot || m.parent === this.art));
+    this.commit("", "Knife");
+  }
+
+  erase(stroke: paper.Path) {
+    if (this.refAdjust || stroke.segments.length < 1) return;
+    let region: paper.PathItem;
+    const half = Math.max(0.5, this.options.eraser / 2);
+    if (stroke.segments.length < 2 || stroke.length < 0.5) region = new this.scope.Path.Circle({ center: stroke.firstSegment.point, radius: half, insert: false });
+    else {
+      stroke.simplify(1);
+      try {
+        region = offsetStroke(stroke as never, half, { cap: "round", join: "round", insert: false }) as unknown as paper.PathItem;
+      } catch {
+        region = strokeOutline(this.scope, Object.assign(stroke, { strokeWidth: half * 2 })) ?? new this.scope.Path.Circle({ center: stroke.firstSegment.point, radius: half, insert: false });
+      }
+    }
+    const targets = this.leafShapes().filter((t) => t.bounds.intersects(region.bounds));
+    let changed = false;
+    const kept: paper.Item[] = [];
+    for (const target of targets) {
+      if (target instanceof this.scope.Path && !target.closed && !target.fillColor) {
+        const crossings = region instanceof this.scope.CompoundPath ? (region.children as paper.Path[]).flatMap((c) => target.getIntersections(c)) : target.getIntersections(region as paper.Path);
+        const whollyInside = !crossings.length && region.contains(target.getPointAt(target.length / 2));
+        if (!crossings.length && !whollyInside) continue;
+        changed = true;
+        const pieces = crossings.length ? this.splitOpenAt(target, crossings.map((c) => c.offset)) : [target];
+        for (const piece of pieces) {
+          if (piece.length < 0.01 || region.contains(piece.getPointAt(piece.length / 2))) piece.remove();
+          else kept.push(piece);
+        }
+        continue;
+      }
+      const rest = target.subtract(region, { insert: false }) as paper.PathItem;
+      if (Math.abs(Math.abs((rest as paper.Path).area ?? 0) - Math.abs((target as paper.Path).area ?? 0)) < 0.01) continue;
+      changed = true;
+      const pieces = this.splitDisjoint(rest, target);
+      pieces.forEach((p, i) => {
+        p.name = i === 0 ? target.name : "";
+        p.insertAbove(target);
+        kept.push(p);
+      });
+      target.remove();
+    }
+    if (!changed) return;
+    if (this.selection.length) this.select(kept.filter((k) => k.parent));
+    this.commit("", "Erase");
+  }
+
+  divide() {
+    if (this.refAdjust) return;
+    const shapes = this.selection.filter((i): i is paper.PathItem => i instanceof this.scope.PathItem).sort((a, b) => a.index - b.index);
+    if (shapes.length < 2) return;
+    let pieces: { shape: paper.PathItem; from: paper.Item }[] = [];
+    for (const shape of shapes) {
+      const next: typeof pieces = [];
+      let rest: paper.PathItem = shape.clone({ insert: false }) as paper.PathItem;
+      for (const piece of pieces) {
+        const inter = piece.shape.intersect(shape, { insert: false }) as paper.PathItem;
+        const diff = piece.shape.subtract(shape, { insert: false }) as paper.PathItem;
+        next.push({ shape: inter, from: shape }, { shape: diff, from: piece.from });
+        rest = rest.subtract(piece.shape, { insert: false }) as paper.PathItem;
+      }
+      next.push({ shape: rest, from: shape });
+      pieces = next;
+    }
+    const top = shapes[shapes.length - 1];
+    const group = new this.scope.Group({ insert: false });
+    group.insertAbove(top);
+    for (const p of pieces) for (const part of this.splitDisjoint(p.shape, p.from)) group.addChild(part);
+    for (const shape of shapes) shape.remove();
+    if (!group.children.length) {
+      group.remove();
+      this.commit("", "Divide");
+      return;
+    }
+    this.select([group]);
+    this.commit("", "Divide");
+  }
+
+  cutPath() {
+    if (this.refAdjust) return;
+    const shapes = this.selection.filter((i): i is paper.PathItem => i instanceof this.scope.PathItem).sort((a, b) => a.index - b.index);
+    if (shapes.length < 2) return;
+    const cutter = shapes[shapes.length - 1];
+    const cutters = cutter instanceof this.scope.CompoundPath ? (cutter.children as paper.Path[]) : [cutter as paper.Path];
+    const made: paper.Item[] = [];
+    for (const shape of shapes.slice(0, -1)) {
+      const paths = shape instanceof this.scope.CompoundPath ? ([...shape.children] as paper.Path[]) : [shape as paper.Path];
+      for (const path of paths) {
+        const offsets = cutters.flatMap((c) => path.getIntersections(c).map((x) => x.offset));
+        if (shape instanceof this.scope.CompoundPath) {
+          path.insertBelow(shape);
+          this.styled(path, shape);
+        }
+        const pieces = offsets.length ? this.splitOpenAt(path, offsets) : [path];
+        for (const piece of pieces) {
+          if (!piece.strokeColor) {
+            piece.strokeColor = piece.fillColor ? new this.scope.Color(toHex(piece.fillColor) ?? this.lineDefaults.stroke) : new this.scope.Color(this.lineDefaults.stroke);
+            piece.strokeWidth = this.lineDefaults.strokeWidth;
+          }
+          piece.fillColor = null;
+          if (piece !== path) piece.name = "";
+          made.push(piece);
+        }
+      }
+      if (shape instanceof this.scope.CompoundPath) shape.remove();
+    }
+    cutter.remove();
+    this.select(made);
+    this.commit("", "Cut path");
+  }
+
+  roundCorners(radius: number) {
+    if (this.refAdjust || radius <= 0) return;
+    const direct = this.tool === "direct" && this.nodes.length > 0;
+    const targets = direct ? this.nodes.filter((s) => s.path) : this.selectedPaths().flatMap((p) => p.segments);
+    const plans = targets.map((seg) => this.planCorner(seg, radius)).filter((p): p is NonNullable<typeof p> => p !== null);
+    if (!plans.length) return;
+    for (const plan of plans) this.applyCorner(plan);
+    this.nodes = [];
+    this.curve = null;
+    this.commit("", "Round corners");
+  }
+
+  private planCorner(seg: paper.Segment, r: number): { seg: paper.Segment; t: number; h: number } | null {
+    const path = seg.path;
+    if (!path || seg.hasHandles()) return null;
+    const n = path.segments.length;
+    if (!path.closed && (seg.isFirst() || seg.isLast())) return null;
+    const cin = path.curves[(seg.index - 1 + n) % n];
+    const cout = seg.curve;
+    if (!cin || !cout || cin === cout) return null;
+    const tin = cin.getTangentAtTime(1);
+    const tout = cout.getTangentAtTime(0);
+    if (!tin || !tout || tin.isZero() || tout.isZero()) return null;
+    const cos = Math.max(-1, Math.min(1, tin.multiply(-1).normalize().dot(tout.normalize())));
+    const theta = Math.acos(cos);
+    if (theta > Math.PI - 0.02 || theta < 0.02) return null;
+    const t = Math.min(r / Math.tan(theta / 2), cin.length * 0.5, cout.length * 0.5);
+    if (t < 0.01) return null;
+    const h = (4 / 3) * Math.tan((Math.PI - theta) / 4) * t * Math.tan(theta / 2);
+    return { seg, t, h };
+  }
+
+  private applyCorner({ seg, t, h }: { seg: paper.Segment; t: number; h: number }) {
+    const path = seg.path;
+    if (!path) return;
+    const n = path.segments.length;
+    const cin = path.curves[(seg.index - 1 + n) % n];
+    const cout = seg.curve;
+    if (!cin || !cout) return;
+    cout.divideAt(Math.min(t, cout.length - 0.001));
+    cin.divideAt(Math.max(0.001, cin.length - t));
+    const s1 = seg.previous;
+    const s2 = seg.next;
+    if (!s1 || !s2) return;
+    const d1 = seg.point.subtract(s1.point).normalize();
+    const d2 = s2.point.subtract(seg.point).normalize();
+    seg.remove();
+    s1.handleOut = d1.multiply(h);
+    s2.handleIn = d2.multiply(-h);
+  }
+
+  private starSegments(shape: { kind: "polygon" | "star"; count: number; r: number; inner?: number }): paper.Segment[] {
+    const count = Math.max(3, Math.round(shape.count));
+    const steps = shape.kind === "star" ? count * 2 : count;
+    const out: paper.Segment[] = [];
+    for (let i = 0; i < steps; i++) {
+      const radius = shape.kind === "star" && i % 2 ? shape.r * Math.max(0.05, Math.min(1, shape.inner ?? 0.45)) : shape.r;
+      out.push(new this.scope.Segment(new this.scope.Point({ angle: -90 + (i * 360) / steps, length: radius })));
+    }
+    return out;
+  }
+
+  private liveStar(item: paper.Item | undefined) {
+    const shape = item?.data?.shape as { kind: "polygon" | "star"; count: number; r: number; inner?: number } | undefined;
+    if (!(item instanceof this.scope.Path) || !shape || (shape.kind !== "polygon" && shape.kind !== "star") || !item.closed) return null;
+    const canon = this.starSegments(shape);
+    if (canon.length !== item.segments.length || item.segments.some((s) => s.hasHandles())) return null;
+    const m = fitAffine(
+      this.scope,
+      canon.map((s) => s.point),
+      item.segments.map((s) => s.point)
+    );
+    if (!m || canon.some((s, i) => m.transform(s.point).getDistance(item.segments[i].point) > 0.5)) return null;
+    return { path: item, shape, m };
+  }
+
+  shapeInfo(): LiveShapeInfo | null {
+    if (this.selection.length !== 1) return null;
+    const live = this.liveStar(this.selection[0]);
+    return live ? { kind: live.shape.kind, count: live.shape.count, inner: Math.round((live.shape.inner ?? 0.45) * 100) } : null;
+  }
+
+  setShape(patch: { count?: number; inner?: number }) {
+    const live = this.liveStar(this.selection[0]);
+    if (!live) return;
+    const next = { ...live.shape, count: Math.max(3, Math.min(100, Math.round(patch.count ?? live.shape.count))), inner: patch.inner !== undefined ? Math.max(5, Math.min(100, patch.inner)) / 100 : live.shape.inner };
+    const temp = new this.scope.Path({ segments: this.starSegments(next), closed: true, insert: false });
+    temp.transform(live.m);
+    live.path.removeSegments();
+    live.path.addSegments(temp.removeSegments());
+    live.path.data.shape = next;
+    this.commit("shape", live.shape.kind === "star" ? "Star" : "Polygon");
+  }
+
+  offsetCopy(distance: number, join: "miter" | "round" | "bevel") {
+    if (this.refAdjust || !distance) return;
+    const made: paper.Item[] = [];
+    for (const item of this.selection) {
+      if (!(item instanceof this.scope.PathItem)) continue;
+      let result: paper.PathItem;
+      try {
+        result = offsetPath(item as never, distance, { join, limit: item.miterLimit, insert: false }) as unknown as paper.PathItem;
+      } catch {
+        continue;
+      }
+      if (!result || !(result as paper.Path).bounds?.width) continue;
+      this.styled(result, item);
+      if (distance > 0) result.insertBelow(item);
+      else result.insertAbove(item);
+      made.push(result);
+    }
+    if (!made.length) return;
+    this.select(made);
+    this.commit("", "Offset path");
+  }
+
+  private endsGroups(): paper.Group[] {
+    return this.art.getItems({ recursive: true, class: this.scope.Group, match: (g: paper.Item) => Boolean(g.data?.ends) }) as paper.Group[];
+  }
+
+  endsInfo(): Ends | null {
+    if (this.selection.length !== 1) return null;
+    const item = this.selection[0];
+    if (item instanceof this.scope.Group && item.data?.ends) return { ...(item.data.ends as Ends) };
+    if (item instanceof this.scope.Path && item.parent?.data?.ends) return { ...(item.parent.data.ends as Ends) };
+    if (item instanceof this.scope.Path && !item.closed && item.strokeColor) return { start: "none", end: "none", size: 1 };
+    return null;
+  }
+
+  setEnds(patch: Partial<Ends>) {
+    if (this.selection.length !== 1 || this.refAdjust) return;
+    let item = this.selection[0];
+    if (item instanceof this.scope.Path && item.parent?.data?.ends) item = item.parent;
+    let group: paper.Group;
+    if (item instanceof this.scope.Group && item.data?.ends) group = item;
+    else if (item instanceof this.scope.Path && !item.closed) {
+      group = new this.scope.Group({ insert: false });
+      group.insertAbove(item);
+      group.name = item.name;
+      item.name = "";
+      group.addChild(item);
+      item.data.line = true;
+      group.data.ends = { start: "none", end: "none", size: 1 };
+    } else return;
+    const ends = { ...(group.data.ends as Ends), ...patch };
+    const line = group.children.find((c) => c.data.line) as paper.Path | undefined;
+    if (line && ends.start === "none" && ends.end === "none") {
+      line.insertAbove(group);
+      line.name = group.name;
+      delete line.data.line;
+      group.remove();
+      this.select([line]);
+    } else {
+      group.data.ends = ends;
+      layoutEnds(this.scope, group);
+      this.select([group]);
+    }
+    this.commit("ends", "Line ends");
+  }
+
+  effectsInfo(): Effects | null {
+    if (!this.selection.length) return null;
+    return { ...((this.selection[0].data?.effects as Effects | undefined) ?? {}) };
+  }
+
+  setEffects(fx: Effects) {
+    if (this.refAdjust || !this.selection.length) return;
+    for (const item of this.selection) {
+      if (hasEffects(fx)) item.data.effects = JSON.parse(JSON.stringify(fx));
+      else delete item.data.effects;
+    }
+    this.commit("effects", "Effects");
+  }
+
+  private gradientTarget(): paper.PathItem | paper.PointText | null {
+    if (this.selection.length !== 1) return null;
+    const item = this.selection[0];
+    return item instanceof this.scope.PathItem || item instanceof this.scope.PointText ? item : null;
+  }
+
+  private gradientOf(item: paper.Item): { stops: GradientStop[]; origin: paper.Point; destination: paper.Point; radial: boolean } | null {
+    const c = item.fillColor;
+    if (!c?.gradient) return null;
+    const g = c as unknown as { origin: paper.Point; destination: paper.Point };
+    const stops = c.gradient.stops;
+    return {
+      stops: stops.map((s, i) => ({ color: toHex(s.color) ?? "#000000", offset: s.offset ?? i / Math.max(1, stops.length - 1) })),
+      origin: g.origin.clone(),
+      destination: g.destination.clone(),
+      radial: Boolean(c.gradient.radial)
+    };
+  }
+
+  private applyGradient(item: paper.Item, g: { stops: GradientStop[]; origin: paper.Point; destination: paper.Point; radial: boolean }, sort = true) {
+    const ordered = sort ? [...g.stops].sort((a, b) => a.offset - b.offset) : g.stops;
+    const stops = ordered.map((s) => [s.color, Math.max(0, Math.min(1, s.offset))]);
+    item.fillColor = new this.scope.Color({ gradient: { stops, radial: g.radial }, origin: g.origin, destination: g.destination } as unknown as paper.Color);
+  }
+
+  private drawGradientHandles(z: number) {
+    const target = this.gradientTarget();
+    const g = target ? this.gradientOf(target) : null;
+    if (!g) return;
+    new this.scope.Path.Line({ from: g.origin, to: g.destination, strokeColor: "white", strokeWidth: 3 / z });
+    new this.scope.Path.Line({ from: g.origin, to: g.destination, strokeColor: ACCENT, strokeWidth: 1.2 / z });
+    g.stops.forEach((s, i) => {
+      const at = g.origin.add(g.destination.subtract(g.origin).multiply(s.offset));
+      const dot = new this.scope.Path.Circle({ center: at, radius: 6 / z, fillColor: s.color, strokeColor: "white", strokeWidth: 2 / z });
+      dot.data.handle = `g-stop-${i}`;
+    });
+    for (const [name, at] of [
+      ["g-origin", g.origin],
+      ["g-dest", g.destination]
+    ] as [string, paper.Point][]) {
+      const knob = new this.scope.Path.Rectangle({ point: at.subtract(5 / z), size: [10 / z, 10 / z], fillColor: "white", strokeColor: ACCENT, strokeWidth: 1.2 / z });
+      knob.data.handle = name;
+    }
+  }
+
+  private startGradient(item: paper.Item): { stops: GradientStop[]; radial: boolean } {
+    const g = this.gradientOf(item);
+    if (g) return { stops: g.stops, radial: g.radial };
+    const base = toHex(item.fillColor) ?? "#d9d4cc";
+    return { stops: [{ color: base, offset: 0 }, { color: "#ffffff", offset: 1 }], radial: false };
+  }
+
+  private mixAt(stops: GradientStop[], t: number): string {
+    const sorted = [...stops].sort((a, b) => a.offset - b.offset);
+    const after = sorted.findIndex((s) => s.offset >= t);
+    if (after <= 0) return sorted[Math.max(0, after)].color;
+    const a = sorted[after - 1];
+    const b = sorted[after];
+    const k = b.offset === a.offset ? 0 : (t - a.offset) / (b.offset - a.offset);
+    const ca = new this.scope.Color(a.color);
+    const cb = new this.scope.Color(b.color);
+    return toHex(new this.scope.Color(ca.red + (cb.red - ca.red) * k, ca.green + (cb.green - ca.green) * k, ca.blue + (cb.blue - ca.blue) * k)) ?? a.color;
+  }
+
+  async textToOutlines(load: (family: string, weight: number) => Promise<ArrayBuffer | null>): Promise<number> {
+    if (this.refAdjust) return 0;
+    const texts: paper.PointText[] = [];
+    const tpGroups: paper.Group[] = [];
+    for (const item of this.selection) {
+      if (item instanceof this.scope.PointText) texts.push(item);
+      else if (item.data?.textPath) {
+        tpGroups.push(item as paper.Group);
+        texts.push(...(item.children.filter((c) => c instanceof this.scope.PointText) as paper.PointText[]));
+      } else if (item instanceof this.scope.Group) texts.push(...(item.getItems({ recursive: true, class: this.scope.PointText }) as paper.PointText[]));
+    }
+    if (!texts.length) throw new Error("Select some text first.");
+    const made: paper.Item[] = [];
+    for (const text of texts) {
+      if (!text.content.trim()) continue;
+      const d = await outlineText(
+        {
+          content: text.content,
+          fontFamily: String(text.fontFamily),
+          fontSize: Number(text.fontSize),
+          fontWeight: String(text.fontWeight),
+          justification: (text.justification as "left" | "center" | "right") ?? "left",
+          leading: Number(text.leading),
+          spacing: text.data.letterSpacing ?? 0
+        },
+        load
+      );
+      if (this.destroyed || !text.parent) return 0;
+      const shape = this.scope.PathItem.create(d || "M0 0");
+      shape.remove();
+      shape.transform(text.matrix);
+      shape.fillColor = text.fillColor ? text.fillColor.clone() : null;
+      shape.strokeColor = text.strokeColor ? text.strokeColor.clone() : null;
+      shape.strokeWidth = text.strokeWidth;
+      shape.opacity = text.opacity;
+      shape.blendMode = text.blendMode;
+      shape.fillRule = "nonzero";
+      if (text.data.effects) shape.data.effects = text.data.effects;
+      if (!text.data.glyph) shape.name = text.name;
+      shape.insertAbove(text);
+      text.remove();
+      made.push(shape);
+    }
+    for (const group of tpGroups) {
+      for (const kid of [...group.children]) if (kid.data.guide) kid.remove();
+      delete group.data.textPath;
+    }
+    const top = [...new Set(made.map((m) => this.topLevel(m)))];
+    this.select(top.filter((t) => t.parent));
+    this.commit("", "Text to shapes");
+    return made.length;
+  }
+
+  clearGuides() {
+    if (!this.guides.x.length && !this.guides.y.length) return;
+    this.guides = { x: [], y: [] };
+    this.commit("", "Clear guides");
+  }
+
+  setSnapOptions(patch: Partial<Pick<DrawingEngine["options"], "snap" | "smartGuides" | "snapPoints" | "angleStep" | "rulers">>) {
+    Object.assign(this.options, patch);
+    this.refresh();
+  }
+
+  private buildSnap(exclude: paper.Item[]) {
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const b = this.board.bounds;
+    xs.push(b.left, b.center.x, b.right, ...this.guides.x);
+    ys.push(b.top, b.center.y, b.bottom, ...this.guides.y);
+    const excluded = (i: paper.Item) => exclude.some((e) => i === e || i.isDescendant(e) || e.isDescendant(i));
+    for (const item of this.scopeRoot.children) {
+      if (!item.visible || excluded(item)) continue;
+      const r = item.bounds;
+      xs.push(r.left, r.center.x, r.right);
+      ys.push(r.top, r.center.y, r.bottom);
+    }
+    const points: { point: paper.Point; segment: paper.Segment }[] = [];
+    const paths: paper.Path[] = [];
+    if (this.options.snapPoints) {
+      for (const p of this.scopePaths()) {
+        if (excluded(p) || p === this.penPath) continue;
+        paths.push(p);
+        for (const s of p.segments) if (points.length < 6000) points.push({ point: s.point.clone(), segment: s });
+      }
+    }
+    this.snapCache = { xs, ys, points, paths };
+  }
+
+  private nearestValue(values: number[], v: number, tol: number): number | null {
+    let best: number | null = null;
+    let bd = tol;
+    for (const c of values) {
+      const d = Math.abs(c - v);
+      if (d < bd) {
+        bd = d;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  private snapGuideLine(axis: "x" | "y", v: number) {
+    const vb = this.scope.view.bounds;
+    this.snapLines.push(axis === "x" ? [new this.scope.Point(v, vb.top), new this.scope.Point(v, vb.bottom)] : [new this.scope.Point(vb.left, v), new this.scope.Point(vb.right, v)]);
+  }
+
+  private snapMove(delta: paper.Point, startBounds: paper.Rectangle, travelled: paper.Point): paper.Point {
+    this.snapLines = [];
+    this.snapMark = null;
+    const cache = this.snapCache;
+    const tol = 6 / this.scope.view.zoom;
+    let dx = delta.x;
+    let dy = delta.y;
+    let gotX = false;
+    let gotY = false;
+    if (cache && this.options.smartGuides) {
+      const moved = new this.scope.Rectangle(startBounds.point.add(travelled.add(delta)), startBounds.size);
+      let best: { d: number; to: number } | null = null;
+      for (const v of [moved.left, moved.center.x, moved.right]) {
+        const hit = this.nearestValue(cache.xs, v, tol);
+        if (hit !== null && (!best || Math.abs(hit - v) < best.d)) best = { d: Math.abs(hit - v), to: hit - v };
+      }
+      if (best) {
+        dx += best.to;
+        gotX = true;
+      }
+      let bestY: { d: number; to: number } | null = null;
+      for (const v of [moved.top, moved.center.y, moved.bottom]) {
+        const hit = this.nearestValue(cache.ys, v, tol);
+        if (hit !== null && (!bestY || Math.abs(hit - v) < bestY.d)) bestY = { d: Math.abs(hit - v), to: hit - v };
+      }
+      if (bestY) {
+        dy += bestY.to;
+        gotY = true;
+      }
+      const final = new this.scope.Rectangle(startBounds.point.add(travelled.add(new this.scope.Point(dx, dy))), startBounds.size);
+      if (gotX) for (const v of [final.left, final.center.x, final.right]) if (cache.xs.some((c) => Math.abs(c - v) < 0.01)) this.snapGuideLine("x", v);
+      if (gotY) for (const v of [final.top, final.center.y, final.bottom]) if (cache.ys.some((c) => Math.abs(c - v) < 0.01)) this.snapGuideLine("y", v);
+    }
+    if (this.options.snap && (!gotX || !gotY)) {
+      const moved = new this.scope.Rectangle(startBounds.point.add(travelled.add(new this.scope.Point(dx, dy))), startBounds.size);
+      const g = this.options.grid;
+      if (!gotX) dx += Math.round(moved.left / g) * g - moved.left;
+      if (!gotY) dy += Math.round(moved.top / g) * g - moved.top;
+    }
+    return new this.scope.Point(dx, dy);
+  }
+
+  private drawGuides(z: number) {
+    const vb = this.scope.view.bounds;
+    for (const x of this.guides.x) new this.scope.Path.Line({ from: [x, vb.top], to: [x, vb.bottom], strokeColor: GUIDE_COLOUR, strokeWidth: 1 / z });
+    for (const y of this.guides.y) new this.scope.Path.Line({ from: [vb.left, y], to: [vb.right, y], strokeColor: GUIDE_COLOUR, strokeWidth: 1 / z });
+  }
+
+  private drawSnapLines(z: number) {
+    for (const [from, to] of this.snapLines) new this.scope.Path.Line({ from, to, strokeColor: SNAP_COLOUR, strokeWidth: 1 / z, dashArray: [4 / z, 3 / z] });
+    if (this.snapMark) new this.scope.Path.Circle({ center: this.snapMark, radius: 4 / z, strokeColor: SNAP_COLOUR, strokeWidth: 1.5 / z });
+  }
+
+  private drawRulers(z: number) {
+    const vb = this.scope.view.bounds;
+    const t = RULER / z;
+    const bg = new this.scope.Color("#23262b");
+    new this.scope.Path.Rectangle({ rectangle: new this.scope.Rectangle(vb.left, vb.top, vb.width, t), fillColor: bg });
+    new this.scope.Path.Rectangle({ rectangle: new this.scope.Rectangle(vb.left, vb.top, t, vb.height), fillColor: bg });
+    const raw = 70 / z;
+    const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 5, 10].map((m) => m * pow).find((s) => s >= raw) ?? 10 * pow;
+    const minor = step / 5;
+    const ticks = new this.scope.CompoundPath({ strokeColor: new this.scope.Color("#80858d"), strokeWidth: 1 / z });
+    const label = (text: string, at: paper.Point) => new this.scope.PointText({ point: at, content: text, fontSize: 9 / z, fontFamily: "system-ui, sans-serif", fillColor: "#a4a9b0" });
+    const fmt = (v: number) => String(Math.round(v * 100) / 100);
+    const { x: ox, y: oy } = this.box;
+    for (let v = Math.floor((vb.left - ox) / minor) * minor; ox + v <= vb.right; v += minor) {
+      const X = ox + v;
+      if (X < vb.left + t) continue;
+      const major = Math.abs(v / step - Math.round(v / step)) < 1e-6;
+      ticks.addChild(new this.scope.Path.Line({ from: [X, vb.top + t * (major ? 0.15 : 0.65)], to: [X, vb.top + t], insert: false }));
+      if (major) label(fmt(v), new this.scope.Point(X + 2 / z, vb.top + t * 0.55));
+    }
+    for (let v = Math.floor((vb.top - oy) / minor) * minor; oy + v <= vb.bottom; v += minor) {
+      const Y = oy + v;
+      if (Y < vb.top + t) continue;
+      const major = Math.abs(v / step - Math.round(v / step)) < 1e-6;
+      ticks.addChild(new this.scope.Path.Line({ from: [vb.left + t * (major ? 0.15 : 0.65), Y], to: [vb.left + t, Y], insert: false }));
+      if (major) {
+        const l = label(fmt(v), new this.scope.Point(vb.left + t * 0.55, Y - 2 / z));
+        l.rotate(-90, l.point);
+      }
+    }
+    new this.scope.Path.Rectangle({ rectangle: new this.scope.Rectangle(vb.left, vb.top, t, t), fillColor: bg });
+  }
+
+  private inRuler(point: paper.Point): "x" | "y" | "corner" | null {
+    if (!this.options.rulers) return null;
+    const vb = this.scope.view.bounds;
+    const t = RULER / this.scope.view.zoom;
+    const top = point.y < vb.top + t;
+    const left = point.x < vb.left + t;
+    return top && left ? "corner" : top ? "y" : left ? "x" : null;
+  }
+
+  private guideAt(point: paper.Point): { axis: "x" | "y"; index: number } | null {
+    const tol = 4 / this.scope.view.zoom;
+    const ix = this.guides.x.findIndex((x) => Math.abs(x - point.x) < tol);
+    if (ix >= 0) return { axis: "x", index: ix };
+    const iy = this.guides.y.findIndex((y) => Math.abs(y - point.y) < tol);
+    return iy >= 0 ? { axis: "y", index: iy } : null;
+  }
+
+  private smoothCurvature(path: paper.Path) {
+    if (path.segments.length < 2) return;
+    path.smooth({ type: "catmull-rom" });
+    for (const s of path.segments) if (this.penCorners.has(s.index)) s.clearHandles();
+    if (!path.closed) {
+      path.firstSegment.handleIn = new this.scope.Point(0, 0);
+      path.lastSegment.handleOut = new this.scope.Point(0, 0);
+    }
   }
 
   boolean(op: BooleanOp) {
@@ -2563,7 +3584,13 @@ export class DrawingEngine {
         results.push(item);
         continue;
       }
-      const outline = strokeOutline(this.scope, item);
+      let outline: paper.PathItem | null = null;
+      try {
+        outline = offsetStroke(item as never, item.strokeWidth / 2, { cap: item.strokeCap as "butt", join: item.strokeJoin as "miter", limit: item.miterLimit, insert: false }) as unknown as paper.PathItem;
+      } catch {
+        outline = null;
+      }
+      if (!outline || !outline.bounds.width) outline = strokeOutline(this.scope, item);
       if (!outline) {
         results.push(item);
         continue;
@@ -2597,7 +3624,8 @@ export class DrawingEngine {
         join: "miter",
         miterLimit: 10,
         fillRule: "nonzero",
-        opacity: 1
+        opacity: 1,
+        blendMode: "normal"
       };
     }
     const style = this.styleSource(item);
@@ -2613,7 +3641,8 @@ export class DrawingEngine {
       join: (style.strokeJoin as StyleInfo["join"]) ?? "miter",
       miterLimit: style.miterLimit ?? 10,
       fillRule: style instanceof this.scope.PathItem && style.fillRule === "evenodd" ? "evenodd" : "nonzero",
-      opacity: item.opacity
+      opacity: item.opacity,
+      blendMode: (item.blendMode as BlendMode) ?? "normal"
     };
   }
 
@@ -2621,8 +3650,17 @@ export class DrawingEngine {
     if (fill.kind === "none") return null;
     if (fill.kind === "solid") return new this.scope.Color(fill.color);
     const b = item.bounds;
-    const stops = [fill.color, fill.color2];
-    if (fill.kind === "radial") {
+    const list = (fill.stops && fill.stops.length >= 2 ? fill.stops.map((st) => ({ ...st })) : [{ color: fill.color, offset: 0 }, { color: fill.color2, offset: 1 }]).sort((p, q) => p.offset - q.offset);
+    list[0].color = fill.color;
+    list[list.length - 1].color = fill.color2;
+    const stops = list.map((st) => [st.color, Math.max(0, Math.min(1, st.offset))]);
+    const radial = fill.kind === "radial";
+    const current = item.fillColor?.gradient ? (item.fillColor as unknown as { origin: paper.Point; destination: paper.Point; gradient: paper.Gradient }) : null;
+    const near = (p: paper.Point, q?: [number, number]) => Boolean(q) && Math.abs(p.x - q![0]) < 0.01 && Math.abs(p.y - q![1]) < 0.01;
+    if (current && Boolean(current.gradient.radial) === radial && near(current.origin, fill.origin) && near(current.destination, fill.destination) && (radial || Math.round(current.destination.subtract(current.origin).angle) === fill.angle)) {
+      return new this.scope.Color({ gradient: { stops, radial }, origin: current.origin, destination: current.destination } as unknown as paper.Color);
+    }
+    if (radial) {
       return new this.scope.Color({ gradient: { stops, radial: true }, origin: b.center, destination: b.center.add(new this.scope.Point(Math.max(b.width, b.height) / 2, 0)) } as unknown as paper.Color);
     }
     const half = new this.scope.Point({ angle: fill.angle, length: Math.max(b.width, b.height) / 2 });
@@ -2644,10 +3682,10 @@ export class DrawingEngine {
     }
     const apply = (item: paper.Item) => {
       if (item instanceof this.scope.Group) {
-        for (const kid of item.children) apply(kid);
+        for (const kid of item.children) if (!kid.data?.head) apply(kid);
         return;
       }
-      if (patch.fill) item.fillColor = this.makeFill(item, patch.fill);
+      if (patch.fill && !(item.data?.line && item.parent?.data?.ends)) item.fillColor = this.makeFill(item, patch.fill);
       if (patch.stroke !== undefined) item.strokeColor = patch.stroke ? new this.scope.Color(patch.stroke) : null;
       if (patch.strokeWidth !== undefined) item.strokeWidth = patch.strokeWidth;
       if (patch.dash !== undefined) item.dashArray = patch.dash ? [Math.max(2, item.strokeWidth * 3), Math.max(2, item.strokeWidth * 2)] : [];
@@ -2661,6 +3699,7 @@ export class DrawingEngine {
     for (const item of this.selection) {
       apply(item);
       if (patch.opacity !== undefined) item.opacity = patch.opacity;
+      if (patch.blendMode) item.blendMode = patch.blendMode;
     }
     this.commit(key);
   }
