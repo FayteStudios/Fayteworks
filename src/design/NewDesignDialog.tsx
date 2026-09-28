@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createDesignPage, DESIGN_PRESETS, type DesignPreset } from "../model/design";
 import { useEditor } from "../state/store";
 
-export function NewDesignDialog({ onClose }: { onClose: () => void }) {
+export function NewDesignDialog({ onClose, onCreated }: { onClose: () => void; onCreated?: () => void }) {
   const { state, page, commit, setPage } = useEditor();
   const ref = useRef<HTMLDialogElement>(null);
   const [preset, setPreset] = useState<DesignPreset>(DESIGN_PRESETS[0]);
@@ -21,6 +21,7 @@ export function NewDesignDialog({ onClose }: { onClose: () => void }) {
       draft.pages.push(design);
     });
     setPage(design.id);
+    onCreated?.();
     onClose();
   }
 

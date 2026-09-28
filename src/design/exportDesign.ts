@@ -89,6 +89,45 @@ async function sheetImages(site: Site, page: Page & { design: DesignFormat }, op
   }
 }
 
+const thumbs = new Map<string, Promise<string>>();
+
+function hashOf(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+export function designThumbnail(site: Site, page: Page & { design: DesignFormat }, width = 320): Promise<string> {
+  const key = `${page.id}:${width}:${hashOf(JSON.stringify([page.sections, page.design, site.theme, site.components]))}`;
+  let hit = thumbs.get(key);
+  if (hit) return hit;
+  hit = (async () => {
+    const markup = await sheetsMarkup(site, page);
+    const host = document.createElement("div");
+    host.className = "site-root design-export-host";
+    for (const [name, value] of Object.entries(themeVars(site.theme))) host.style.setProperty(name, String(value));
+    host.style.position = "fixed";
+    host.style.left = "-100000px";
+    host.style.top = "0";
+    host.style.width = `${sheetSize(page.design).width}px`;
+    host.innerHTML = markup;
+    document.body.appendChild(host);
+    try {
+      await document.fonts.ready;
+      await Promise.all(Array.from(host.querySelectorAll("img")).map((img) => (img.complete ? null : new Promise((r) => ((img.onload = r), (img.onerror = r))))));
+      const sheet = host.querySelector<HTMLElement>(".site-section--sheet");
+      if (!sheet) return "";
+      const canvas = await domToCanvas(sheet, { scale: width / sheetSize(page.design).width, backgroundColor: "#ffffff" });
+      return canvas.toDataURL("image/jpeg", 0.82);
+    } finally {
+      host.remove();
+    }
+  })();
+  hit.catch(() => thumbs.delete(key));
+  thumbs.set(key, hit);
+  return hit;
+}
+
 export async function designShareImage(site: Site, page: Page & { design: DesignFormat }): Promise<Blob> {
   assertPublishable(site, page);
   const [first] = await sheetImages(site, page, { format: "jpg", bleed: false, dpi: 96 });

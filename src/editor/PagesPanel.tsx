@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { openScene } from "../scenes/scenes";
 import { Icon } from "./icons";
 import { useClientLock } from "../client/clientMode";
-import { NewDesignDialog } from "../design/NewDesignDialog";
+import { openDesignHome } from "../design/home";
 import { useEditor } from "../state/store";
 import { cls } from "../util/cls";
 import { NewPageDialog } from "./NewMenu";
@@ -40,7 +40,6 @@ export function PageMenu({ onSettings, onDelete, settingsLabel = "Page settings"
 export function PagesPanel() {
   const { state, page: currentPage, commit, setPage } = useEditor();
   const { pages } = state.site;
-  const [newDesign, setNewDesign] = useState(false);
   const [newPage, setNewPage] = useState(false);
   const locked = useClientLock();
   const webPages = pages.filter((p) => !p.design);
@@ -78,7 +77,7 @@ export function PagesPanel() {
 
       <h3 className="panel-heading pages-designs-heading">Designs</h3>
       {!locked && (
-        <button className="inspector-door" onClick={() => (designs[0] ? setPage(designs[0].id) : setNewDesign(true))}>
+        <button className="inspector-door" onClick={openDesignHome}>
           <Icon name="design" size={20} />
           <span>
             <strong>{designs.length ? "Open the design tool" : "Make a design"}</strong>
@@ -86,7 +85,6 @@ export function PagesPanel() {
           </span>
         </button>
       )}
-      {newDesign && <NewDesignDialog onClose={() => setNewDesign(false)} />}
       {newPage && <NewPageDialog onClose={() => setNewPage(false)} />}
     </div>
   );

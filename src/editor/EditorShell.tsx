@@ -1,5 +1,7 @@
 import { openScene, useScene } from "../scenes/scenes";
 import { DesignsPanel } from "../design/DesignsPanel";
+import { DesignsHome } from "../design/DesignsHome";
+import { openDesignHome, useDesignHome } from "../design/home";
 import { FramesPanel } from "../motion/FlipbookTools";
 import { onFocusRequest } from "./focusTools";
 import { SceneHost } from "../scenes/SceneHost";
@@ -504,7 +506,9 @@ function TopBar({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
         {isolated && (makingInPlace ? <span className="topbar-isolated">Changing its design</span> : <FocusToolSwitch />)}
         {designing && !isolated && (
           <>
-            <span className="topbar-isolated">Design tool</span>
+            <button className="topbar-isolated topbar-isolated--button" title="See all your designs" onClick={openDesignHome}>
+              Designs
+            </button>
             <button className={cls("btn topbar-tool", palette && "is-active")} aria-pressed={palette} data-palette-toggle onClick={() => workspace.set({ palette: !palette })}>
               <Icon name="add" size={16} />
               Add
@@ -606,6 +610,7 @@ const RAIL_ICONS: Record<RailPanel, IconName> = { pages: "page", layers: "layers
 function Rail({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
   const { issues } = useIssues();
   const { left } = workspace.layout;
+  const locked = useClientLock();
   return (
     <nav className="rail" aria-label="Panels">
       {RAIL_PANELS.map((p) => (
@@ -615,6 +620,12 @@ function Rail({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
           {p === "check" && issues.length > 0 && <span className="rail-badge">{issues.length}</span>}
         </button>
       ))}
+      {!locked && (
+        <button className="rail-item" title="Flyers, cards, posters, social images and drawings" onClick={openDesignHome}>
+          <Icon name="design" size={20} />
+          <span>Designs</span>
+        </button>
+      )}
       <span className="rail-spacer" />
       <div className="rail-dot-slot" />
       {desktop && (
@@ -718,6 +729,7 @@ function Workspace() {
   const isolated = editing && Boolean(state.focusedBlock);
   const makingInPlace = isolated && Boolean(state.componentId && state.componentAnchor);
   const [scene, setScene] = useScene();
+  const designHome = useDesignHome();
   const leftPanel = (panel: RailPanel) =>
     clientLocked && ["layers", "check"].includes(panel) ? <ClientLockedPanel /> : panel === "layers" ? <LayersPanel /> : panel === "pages" ? <PagesPanel /> : panel === "check" ? <CheckPanel /> : <DataPanel />;
   const left = editing && !isolated && !designing ? layout.left : null;
@@ -732,6 +744,7 @@ function Workspace() {
   return (
     <>
     {scene && <SceneHost scene={scene} setScene={setScene} />}
+    {designHome && editing && <DesignsHome />}
     <div
       hidden={Boolean(scene)}
       inert={Boolean(scene)}

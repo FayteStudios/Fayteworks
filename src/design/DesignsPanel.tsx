@@ -8,6 +8,7 @@ import { PageMenu } from "../editor/PagesPanel";
 import { DESIGN_PRESETS, describeSize } from "../model/design";
 import { useEditor } from "../state/store";
 import { cls } from "../util/cls";
+import { openDesignHome } from "./home";
 import { NewDesignDialog } from "./NewDesignDialog";
 
 export function DesignsPanel() {
@@ -36,6 +37,11 @@ export function DesignsPanel() {
         </button>
       </div>
       <div className="panel-body">
+        {tab === "designs" && (
+          <button className="btn btn--block designs-all" onClick={openDesignHome}>
+            <Icon name="design" size={16} /> All designs
+          </button>
+        )}
         {tab === "layers" ? (
           <LayersPanel />
         ) : (

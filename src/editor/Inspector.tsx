@@ -874,8 +874,8 @@ function PageSummary() {
 
 function PageAndThemeInspector() {
   const { state, page, commit } = useEditor();
-  if (!page.design) return <PageSummary />;
   const pageEditLang = useEditingLang(state.site);
+  if (!page.design) return <PageSummary />;
   const pageId = page.id;
   const isHome = state.site.pages[0].id === pageId;
 
