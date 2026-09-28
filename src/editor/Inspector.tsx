@@ -1137,7 +1137,7 @@ function MakingInPlace({ def }: { def: ComponentDef }) {
         <li>
           <strong>Add a piece</strong> at the top puts something new in.
         </li>
-        {card && <li>Each piece can show one of the {card.collection.name} fields, like the title or the picture: pick it under its settings.</li>}
+        {card && <li>Each piece can show one of the {card.collection.name} fields, like the title or the picture: drag a dot from the fields box onto it, or pick the field under its settings.</li>}
       </ol>
       <p className="field-hint">{uses > 1 ? `Changes show in all ${uses} places it's used.` : "It's only used here."}</p>
       <button className="btn btn--primary btn--block" onClick={() => editComponent(null)}>

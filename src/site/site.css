@@ -1727,15 +1727,59 @@ a.b-gallery-item:hover img {
   color: var(--muted);
 }
 
+.b-collection--carousel {
+  grid-auto-flow: column;
+  grid-template-columns: none;
+  grid-auto-columns: calc((100% - (var(--cols, 3) - 1) * var(--gap, 20px)) / var(--cols, 3));
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 8px;
+}
+
+.b-collection--carousel > .b-collection-item {
+  scroll-snap-align: start;
+}
+
+.b-collection--masonry {
+  display: block;
+  columns: var(--cols, 3);
+  column-gap: var(--gap, 20px);
+}
+
+.b-collection--masonry > .b-collection-item {
+  display: block;
+  margin-bottom: var(--gap, 20px);
+  break-inside: avoid;
+}
+
+.b-collection-item[hidden] {
+  display: none;
+}
+
+.b-collection-more {
+  display: flex;
+  margin: calc(var(--gap, 20px) * 1.2) auto 0;
+}
+
 @container site (max-width: 700px) {
   .b-collection {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(var(--phone-cols, 1), minmax(0, 1fr));
+  }
+  .b-collection--carousel {
+    grid-template-columns: none;
+    grid-auto-columns: 82%;
+  }
+  .b-collection--masonry {
+    columns: var(--phone-cols, 1);
   }
 }
 
 @container site (min-width: 701px) and (max-width: 1100px) {
-  .b-collection {
+  .b-collection:not(.b-collection--carousel, .b-collection--masonry) {
     grid-template-columns: repeat(min(var(--cols, 3), 2), minmax(0, 1fr));
+  }
+  .b-collection--masonry {
+    columns: min(var(--cols, 3), 2);
   }
 }
 

@@ -784,6 +784,21 @@ export function initSite(root: Document | HTMLElement): () => void {
     cleanups.push(() => items.forEach((item) => (item.hidden = false)));
   }
 
+  for (const wrap of all('[data-js="show-more"]')) {
+    const button = wrap.querySelector<HTMLButtonElement>(".b-collection-more");
+    const extra = all(".b-collection-item[data-more]", wrap);
+    if (!button) continue;
+    listen(button, "click", () => {
+      extra.forEach((item) => (item.hidden = false));
+      button.hidden = true;
+      extra[0]?.querySelector<HTMLElement>("a, button")?.focus({ preventScroll: true });
+    });
+    cleanups.push(() => {
+      extra.forEach((item) => (item.hidden = true));
+      button.hidden = false;
+    });
+  }
+
   for (const box of all('[data-js="social-comments"]')) {
     const list = box.querySelector<HTMLOListElement>(".b-social-comments-list");
     const post = box.dataset.post ?? "";

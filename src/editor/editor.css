@@ -6262,3 +6262,105 @@ body:has(.focus-tool-panel--draw, .focus-tool-panel--code, .focus-tool-panel.is-
   color: #a3a7ae;
   font-family: system-ui, sans-serif;
 }
+
+.field-wires {
+  position: absolute;
+  top: 44px;
+  right: 16px;
+  z-index: 9;
+  width: 220px;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-panel);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+}
+
+.field-wires-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.field-wires-hint,
+.field-wires-note {
+  margin: 4px 0 6px;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.field-wires-note {
+  color: #a7f3d0;
+}
+
+.field-wires ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.field-wires li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.field-wires li.is-bound span {
+  color: #c4b5fd;
+}
+
+.field-knob {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 2px solid #8b5cf6;
+  border-radius: 50%;
+  background: var(--ui-bg);
+  cursor: grab;
+  touch-action: none;
+}
+
+.field-wires li.is-bound .field-knob {
+  background: #8b5cf6;
+}
+
+.field-wires-lines {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.field-wire {
+  fill: none;
+  stroke: #8b5cf6;
+  stroke-width: 2;
+  opacity: 0.55;
+}
+
+.field-wire.is-dragging {
+  opacity: 1;
+  stroke-dasharray: 6 4;
+}
+
+.field-wire-end {
+  fill: #8b5cf6;
+}
+
+.field-wire-target {
+  fill: rgb(139 92 246 / 0.12);
+  stroke: #8b5cf6;
+  stroke-width: 2;
+}

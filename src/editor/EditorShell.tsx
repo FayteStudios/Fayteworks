@@ -2,6 +2,7 @@ import { openScene, useScene } from "../scenes/scenes";
 import { DesignsPanel } from "../design/DesignsPanel";
 import { openSecondWindow, useLiveBroadcast } from "../viewer/live";
 import { CodePanel, DrawPanel, MediaPanel } from "./FocusPanels";
+import { FieldWires } from "./FieldWires";
 import { openShortcuts, ShortcutsHost } from "../guides/ShortcutsDialog";
 import { DesignsHome } from "../design/DesignsHome";
 import { openDesignHome, useDesignHome } from "../design/home";
@@ -808,6 +809,7 @@ function Workspace() {
       )}
       <main className="stage">
         <Canvas />
+        {editing && <FieldWires />}
         {editing && (
           <div className="canvas-zoom">
             <ZoomControl />
