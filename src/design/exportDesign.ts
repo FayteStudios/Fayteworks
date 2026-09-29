@@ -43,6 +43,7 @@ async function sheetsMarkup(site: Site, page: Page & { design: DesignFormat }): 
     homePageId: site.pages[0].id,
     currentPageId: page.id,
     components: site.components,
+    pages: site.pages,
     sheet: sheetContext(page.design)
   };
   return renderToStaticMarkup(createElement(RenderCtx.Provider, { value: ctx }, createElement(PageRenderer, { site, page })));

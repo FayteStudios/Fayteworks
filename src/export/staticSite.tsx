@@ -349,6 +349,7 @@ export async function buildStaticSite(site: Site, options: StaticSiteOptions = {
         return { code: l.code, label: l.label, href: other ? `${toRoot}${other}/` : toRoot || "./", current: l.code === lang };
       }),
       components: site.components,
+      pages: site.pages,
       collections: site.collections,
       extras: site.extras,
       sprites: site.sprites,

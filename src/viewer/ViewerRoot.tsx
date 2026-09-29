@@ -64,6 +64,7 @@ export function ViewerRoot() {
       sheet: page.design ? sheetContext(page.design) : undefined,
       collections: site.collections,
       components: site.components,
+      pages: site.pages,
       extras: site.extras,
       sprites: site.sprites
     };

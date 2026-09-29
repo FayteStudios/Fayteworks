@@ -40,6 +40,7 @@ export function EditorRenderProvider({ children }: { children: ReactNode }) {
         return first ? { values: itemValues(state.site.collections?.find((c) => c.id === page.collectionId), first), url: "#" } : undefined;
       })(),
       components: state.site.components,
+      pages,
       extras: state.site.extras,
       sprites: state.site.sprites
     }),

@@ -1,6 +1,6 @@
 import type { SpriteSet } from "../model/types";
 import { createContext, useContext } from "react";
-import { PAGE_LINK_PREFIX, type Collection, type ComponentDef } from "../model/types";
+import { PAGE_LINK_PREFIX, type Collection, type ComponentDef, type Page } from "../model/types";
 
 export interface ResolvedLink {
   href: string;
@@ -24,6 +24,7 @@ export interface RenderContext {
   sheet?: { width: number; height: number; bleed: number; safe: number; folds: number };
   components?: ComponentDef[];
   componentDepth?: number;
+  pages?: Page[];
   collections?: Collection[];
   templatePages?: Record<string, string>;
   item?: { values: Record<string, string | number | boolean>; url: string };
