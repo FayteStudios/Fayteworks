@@ -4,7 +4,7 @@ import { getBlockDefinition } from "../blocks/registry";
 import { thirdPartyNotices } from "../catalogue/notices";
 import { assertPublishable } from "../catalogue/rights";
 import { createSection } from "../model/factory";
-import { googleFontsCssUrl, themeGoogleFonts } from "../model/fonts";
+import { googleFontsCssUrl, pieceGoogleFonts, themeGoogleFonts } from "../model/fonts";
 import { themeVars } from "../model/theme";
 import type { Block, Section, Site } from "../model/types";
 import { scopeCss, splitSelectors } from "../site/customHtml";
@@ -108,7 +108,7 @@ export async function buildPiece(site: Site, piece: Piece, tokens?: Map<string, 
     css,
     scopedCss: scopeCss(css, `.${wrapper}`),
     wrapper,
-    fontsUrl: googleFontsCssUrl(themeGoogleFonts(site.theme)),
+    fontsUrl: googleFontsCssUrl([...themeGoogleFonts(site.theme), ...pieceGoogleFonts(site)]),
     runtime: needsRuntime ? `(${initSite.toString()})` : null,
     notices: thirdPartyNotices({ ...site, pages: [{ ...site.pages[0], sections: [section] }], header: null, footer: null, components: [] })
   };

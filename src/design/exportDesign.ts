@@ -3,7 +3,7 @@ import { assertPublishable } from "../catalogue/rights";
 import { renderToStaticMarkup } from "react-dom/server";
 import { domToCanvas } from "modern-screenshot";
 import { sheetContext, sheetSize, unitPx } from "../model/design";
-import { fontFaceCss, googleFontsCssUrl, themeGoogleFonts } from "../model/fonts";
+import { fontFaceCss, googleFontsCssUrl, pieceGoogleFonts, themeGoogleFonts } from "../model/fonts";
 import { themeVars } from "../model/theme";
 import type { DesignFormat, Page, Site } from "../model/types";
 import { desktop } from "../platform/desktop";
@@ -145,7 +145,7 @@ export async function designPrintHtml(site: Site, page: Page & { design: DesignF
   const pageH = bleed ? format.height + 2 * format.bleed : format.height;
   const zoom = ((format.width + 2 * format.bleed) * unitPx(format.unit)) / size.width;
   const cut = bleed ? 0 : size.bleed;
-  const fonts = googleFontsCssUrl(themeGoogleFonts(site.theme));
+  const fonts = googleFontsCssUrl([...themeGoogleFonts(site.theme), ...pieceGoogleFonts(site)]);
   const inlined = new Map<string, string>();
   for (const f of site.fonts ?? []) {
     const asset = isAssetRef(f.src) ? await getAsset(f.src) : undefined;

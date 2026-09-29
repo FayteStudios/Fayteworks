@@ -3,6 +3,46 @@ import type { RenderContext } from "../site/renderContext";
 import { linkAttrs, RichText } from "../site/richText";
 import type { BlockCategory, BlockDefinition } from "./types";
 import { alignField, color, FLEX_ALIGN, num, Paragraphs, str } from "./util";
+import type { BlockProps } from "../model/types";
+import type { FieldDef } from "../model/fields";
+import { fontCss } from "../model/fonts";
+
+const FONT_FIELDS: FieldDef[] = [
+  {
+    key: "fontFamily",
+    label: "Font",
+    kind: "font",
+    placeholder: "Site font",
+    hint: "Any font for just this piece, like a handwritten one. More in Look → Fonts, or import your own at the top of the list."
+  },
+  {
+    key: "fontStyle",
+    label: "Style",
+    kind: "select",
+    options: [
+      { value: "", label: "Normal" },
+      { value: "bold", label: "Bold" },
+      { value: "italic", label: "Italic" },
+      { value: "bold-italic", label: "Bold italic" },
+      { value: "light", label: "Light" }
+    ]
+  }
+];
+
+const sizeField = (options: { value: string; label: string }[]): FieldDef[] => [
+  { key: "size", label: "Size", kind: "select", options: [...options, { value: "custom", label: "My own size" }] },
+  { key: "sizePx", label: "Size in pixels", kind: "number", min: 6, max: 400, showWhen: { key: "size", is: ["custom"] } }
+];
+
+function fontStyle(p: BlockProps, sizes: Record<string, string>, fallback: string): CSSProperties {
+  const style = str(p.fontStyle);
+  return {
+    fontSize: str(p.size) === "custom" ? `${num(p.sizePx, 18)}px` : (sizes[str(p.size, fallback)] ?? sizes[fallback]),
+    fontFamily: str(p.fontFamily) ? fontCss(str(p.fontFamily)) : undefined,
+    fontWeight: style.startsWith("bold") ? 700 : style === "light" ? 300 : undefined,
+    fontStyle: style.endsWith("italic") ? "italic" : undefined
+  };
+}
 import { contentDefinitions } from "./content";
 import { interactiveDefinitions } from "./interactive";
 import { codeDefinitions } from "./code";
@@ -138,18 +178,14 @@ const definitions: BlockDefinition[] = [
     defaultProps: { text: "A bold headline", level: "2", size: "l", align: "left", color: "" },
     fields: [
       { key: "text", label: "Text", kind: "textarea" },
-      {
-        key: "size",
-        label: "Size",
-        kind: "select",
-        options: [
-          { value: "s", label: "Small" },
-          { value: "m", label: "Medium" },
-          { value: "l", label: "Large" },
-          { value: "xl", label: "Extra large" },
-          { value: "display", label: "Display" }
-        ]
-      },
+      ...FONT_FIELDS,
+      ...sizeField([
+        { value: "s", label: "Small" },
+        { value: "m", label: "Medium" },
+        { value: "l", label: "Large" },
+        { value: "xl", label: "Extra large" },
+        { value: "display", label: "Display" }
+      ]),
       {
         key: "level",
         label: "Tag",
@@ -160,8 +196,9 @@ const definitions: BlockDefinition[] = [
       alignField,
       {
         key: "font",
-        label: "Font",
+        label: "Site font to use",
         kind: "select",
+        hint: "When Font above is the site font.",
         options: [
           { value: "heading", label: "Heading font" },
           { value: "body", label: "Body font" }
@@ -178,8 +215,8 @@ const definitions: BlockDefinition[] = [
         <Tag
           className="b-heading"
           style={{
-            fontSize: HEADING_SIZES[str(p.size, "l")] ?? HEADING_SIZES.l,
-            fontFamily: str(p.font) === "body" ? "var(--font-body)" : undefined,
+            ...fontStyle(p, HEADING_SIZES, "l"),
+            fontFamily: str(p.fontFamily) ? fontCss(str(p.fontFamily)) : str(p.font) === "body" ? "var(--font-body)" : undefined,
             textAlign: str(p.align, "left") as CSSProperties["textAlign"],
             color: color(p.color)
           }}
@@ -204,16 +241,12 @@ const definitions: BlockDefinition[] = [
     },
     fields: [
       { key: "text", label: "Text", kind: "textarea", hint: "Blank line = new paragraph. **bold**, _italic_, [link](https://…). Or double-click the text on the canvas." },
-      {
-        key: "size",
-        label: "Size",
-        kind: "select",
-        options: [
-          { value: "s", label: "Small" },
-          { value: "m", label: "Regular" },
-          { value: "l", label: "Lead" }
-        ]
-      },
+      ...FONT_FIELDS,
+      ...sizeField([
+        { value: "s", label: "Small" },
+        { value: "m", label: "Regular" },
+        { value: "l", label: "Lead" }
+      ]),
       alignField,
       { key: "color", label: "Colour", kind: "color" }
     ],
@@ -223,7 +256,7 @@ const definitions: BlockDefinition[] = [
       <div
         className="b-text"
         style={{
-          fontSize: TEXT_SIZES[str(p.size, "m")] ?? TEXT_SIZES.m,
+          ...fontStyle(p, TEXT_SIZES, "m"),
           textAlign: str(p.align, "left") as CSSProperties["textAlign"],
           color: color(p.color)
         }}

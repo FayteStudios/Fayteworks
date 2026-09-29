@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import { produce } from "immer";
 import { createStarterSite } from "../model/factory";
 import { migrateSite } from "../model/migrate";
+import { cardLayouts } from "../model/extras";
 import { findSection } from "../model/ops";
 import type { Page, Site, Orientation } from "../model/types";
 import { tierForWidth, type Tier } from "../model/responsive";
@@ -106,7 +107,8 @@ function savePrefs(state: EditorState) {
 }
 
 export function editorTier(state: Pick<EditorState, "deviceId" | "landscape" | "canvasWidth" | "customSize"> & Partial<Pick<EditorState, "site" | "pageId">>): Tier {
-  if (state.site?.pages.find((p) => p.id === state.pageId)?.design) return "desktop";
+  const page = state.site?.pages.find((p) => p.id === state.pageId);
+  if (page?.design || (page && cardLayouts?.fixedLayout?.(page))) return "desktop";
   const size = viewportSize(state.deviceId, state.landscape, state.customSize);
   return tierForWidth(size?.width ?? (state.canvasWidth || 1440));
 }

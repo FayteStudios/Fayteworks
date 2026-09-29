@@ -3,7 +3,7 @@ import { serviceTags } from "../services/siteServices";
 import { fillTokens, itemValues } from "../data/model";
 import { assertPublishable } from "../catalogue/rights";
 import { slugify } from "../model/factory";
-import { fontFaceCss, googleFontsCssUrl, themeGoogleFonts } from "../model/fonts";
+import { fontFaceCss, googleFontsCssUrl, pieceGoogleFonts, themeGoogleFonts } from "../model/fonts";
 import { themeVars } from "../model/theme";
 import { PAGE_LINK_PREFIX, type Collection, type Page, type Site } from "../model/types";
 import { Markdown } from "../site/markdown";
@@ -256,7 +256,7 @@ function absoluteUrl(baseUrl: string, path: string): string {
 export async function buildStaticSite(site: Site, options: StaticSiteOptions = { fonts: "embed" }): Promise<StaticSiteResult> {
   assertPublishable(site);
   const files: OutputFile[] = [];
-  const fontsUrl = googleFontsCssUrl(allThemes(site).flatMap(themeGoogleFonts));
+  const fontsUrl = googleFontsCssUrl([...allThemes(site).flatMap(themeGoogleFonts), ...pieceGoogleFonts(site)]);
   let fontCss = "";
   let fontFileCount = 0;
   let fontWarning: string | undefined;

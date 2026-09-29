@@ -269,7 +269,7 @@ export function FieldControl({ field, value, onChange, allowTokens }: ControlPro
     case "link":
       return <LinkControl value={value} onChange={onChange} />;
     case "font":
-      return <FontPicker value={String(value ?? "")} onChange={onChange} />;
+      return <FontPicker value={String(value ?? "")} onChange={onChange} emptyLabel={field.placeholder} />;
     case "list":
       return <ListControl field={field} value={value} onChange={onChange} />;
   }

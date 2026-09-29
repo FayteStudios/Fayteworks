@@ -9,7 +9,7 @@ import { canWriteToFolder, downloadBlob, writeToFolder } from "../export/output"
 import type { FontHosting, StaticSiteResult } from "../export/staticSite";
 import { createZip } from "../export/zip";
 import { slugify } from "../model/factory";
-import { themeGoogleFonts } from "../model/fonts";
+import { pieceGoogleFonts, themeGoogleFonts } from "../model/fonts";
 import { desktop, type ProjectConfig, type PublishService } from "../platform/desktop";
 import { useEditor } from "../state/store";
 import { siCloudflare, siGithub, siNetlify } from "simple-icons";
@@ -99,7 +99,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const site = state.site;
   const issues = useMemo(() => checkSite(site), [site]);
   const checkCounts = { total: issues.length, fix: issues.filter((i) => i.severity === "fix").length };
-  const googleFonts = [...new Map(allThemes(site).flatMap(themeGoogleFonts).map((f) => [f.family, f])).values()];
+  const googleFonts = [...new Map([...allThemes(site).flatMap(themeGoogleFonts), ...pieceGoogleFonts(site)].map((f) => [f.family, f])).values()];
   const [fontHosting, setFontHosting] = useState<FontHosting>("embed");
   const [optimise, setOptimise] = useState(true);
   const [config, setConfig] = useState<ProjectConfig>({});

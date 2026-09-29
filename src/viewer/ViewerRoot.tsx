@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { mainLanguage, siteLanguages } from "../i18n/i18n";
 import { sheetContext, sheetSize } from "../model/design";
-import { fontFaceCss, googleFontsCssUrl, themeGoogleFonts } from "../model/fonts";
+import { fontFaceCss, googleFontsCssUrl, pieceGoogleFonts, themeGoogleFonts } from "../model/fonts";
 import { allThemes, pageTheme } from "../model/styles";
 import { themeVars } from "../model/theme";
 import { PAGE_LINK_PREFIX, type Site } from "../model/types";
@@ -47,7 +47,7 @@ export function ViewerRoot() {
     return () => ro.disconnect();
   }, [site === null]);
 
-  useStylesheet("theme-fonts", site ? googleFontsCssUrl(allThemes(site).flatMap(themeGoogleFonts)) : null);
+  useStylesheet("theme-fonts", site ? googleFontsCssUrl([...allThemes(site).flatMap(themeGoogleFonts), ...pieceGoogleFonts(site)]) : null);
   useStyleText("site-font-files", useMemo(() => (site ? fontFaceCss(site.fonts, assetUrl) : ""), [site?.fonts, assetVersion]));
 
   const page = site ? (site.pages.find((p) => p.id === (chosen === "follow" ? editorPage : chosen)) ?? site.pages[0]) : null;

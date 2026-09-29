@@ -23,7 +23,7 @@ import { fontFromFile } from "../fonts/catalogue";
 
 const PREVIEW_TEXT = [...new Set(GOOGLE_FONTS.map((f) => f.family).join("") + "Aa")].join("");
 
-const CATEGORIES: FontCategory[] = ["sans", "serif", "display", "mono"];
+const CATEGORIES: FontCategory[] = ["sans", "serif", "display", "hand", "mono"];
 
 export const FONT_SOURCES = [
   { name: "Google Fonts", url: "https://fonts.google.com", note: "Over 1,500 families, all free for any use. Many are already in this list." },
@@ -49,7 +49,7 @@ export function familyFromFile(name: string): string {
     .trim();
 }
 
-export function FontPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function FontPicker({ value, onChange, emptyLabel }: { value: string; onChange: (value: string) => void; emptyLabel?: string }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [custom, setCustom] = useState("");
@@ -114,7 +114,7 @@ export function FontPicker({ value, onChange }: { value: string; onChange: (valu
           setOpenUp(window.innerHeight - e.currentTarget.getBoundingClientRect().bottom < 420);
           setOpen((o) => !o);
         }}>
-        {fontLabel(value)}
+        {value || !emptyLabel ? fontLabel(value) : emptyLabel}
         <span aria-hidden>▾</span>
       </button>
       {open && (
@@ -168,6 +168,11 @@ export function FontPicker({ value, onChange }: { value: string; onChange: (valu
           <>
           <input autoFocus type="text" placeholder="Search fonts" value={query} onChange={(e) => setQuery(e.target.value)} />
           <div className="font-picker-list">
+            {emptyLabel && !q && (
+              <button className={cls("font-option", !value && "is-active")} onClick={() => choose("")}>
+                {emptyLabel}
+              </button>
+            )}
             <h4>Your fonts</h4>
             {own
               .filter((f) => f.family.toLowerCase().includes(q))

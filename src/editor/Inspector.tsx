@@ -726,8 +726,8 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
 }
 
 const ESSENTIALS: Record<string, string[]> = {
-  heading: ["text", "size", "align", "color"],
-  text: ["text", "size", "align", "color"],
+  heading: ["text", "fontFamily", "size", "sizePx", "fontStyle", "align", "color"],
+  text: ["text", "fontFamily", "size", "sizePx", "fontStyle", "align", "color"],
   button: ["label", "href", "variant"],
   image: ["src", "alt"],
   card: ["image", "title", "text", "href"],

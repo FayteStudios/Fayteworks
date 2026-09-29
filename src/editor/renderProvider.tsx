@@ -6,7 +6,7 @@ import { PAGE_LINK_PREFIX } from "../model/types";
 import { isExternalHref, RenderCtx, type RenderContext } from "../site/renderContext";
 import { assetUrl, useAssetVersion } from "../state/assets";
 import { useEditor } from "../state/store";
-import { fontFaceCss, googleFontsCssUrl, themeGoogleFonts } from "../model/fonts";
+import { fontFaceCss, googleFontsCssUrl, pieceGoogleFonts, themeGoogleFonts } from "../model/fonts";
 import { useStyleText, useStylesheet } from "./useStylesheet";
 import { allThemes } from "../model/styles";
 
@@ -14,7 +14,7 @@ export function EditorRenderProvider({ children }: { children: ReactNode }) {
   const { state, page } = useEditor();
   const assetVersion = useAssetVersion();
   const { pages, theme } = state.site;
-  useStylesheet("theme-fonts", googleFontsCssUrl(allThemes(state.site).flatMap(themeGoogleFonts)));
+  useStylesheet("theme-fonts", googleFontsCssUrl([...allThemes(state.site).flatMap(themeGoogleFonts), ...pieceGoogleFonts(state.site)]));
   useStyleText("site-font-files", useMemo(() => fontFaceCss(state.site.fonts, assetUrl), [state.site.fonts, assetVersion]));
 
   const lang = useEditingLang(state.site);

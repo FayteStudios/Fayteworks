@@ -36,6 +36,7 @@ export interface CardLayouts {
   css: string;
   runtime: (root: Document | HTMLElement) => () => void;
   outline?: (pages: Page[]) => PageOutline | null;
+  fixedLayout?: (page: Page) => boolean;
 }
 
 const found = import.meta.glob<{ default: CardLayouts }>("/private/cards/index.tsx", { eager: true });

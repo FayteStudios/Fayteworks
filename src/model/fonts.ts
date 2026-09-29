@@ -1,6 +1,6 @@
-import type { CustomFont } from "./types";
+import type { CustomFont, Site } from "./types";
 
-export type FontCategory = "sans" | "serif" | "display" | "mono";
+export type FontCategory = "sans" | "serif" | "display" | "hand" | "mono";
 
 export interface GoogleFont {
   family: string;
@@ -67,20 +67,31 @@ export const GOOGLE_FONTS: GoogleFont[] = [
   { family: "Righteous", category: "display", weights: W1 },
   { family: "Lobster", category: "display", weights: W1 },
   { family: "Pacifico", category: "display", weights: W1 },
-  { family: "Caveat", category: "display", weights: W2 },
-  { family: "Permanent Marker", category: "display", weights: W1 },
+  { family: "Caveat", category: "hand", weights: W2 },
+  { family: "Permanent Marker", category: "hand", weights: W1 },
+  { family: "Patrick Hand", category: "hand", weights: W1 },
+  { family: "Indie Flower", category: "hand", weights: W1 },
+  { family: "Kalam", category: "hand", weights: W2 },
+  { family: "Shadows Into Light", category: "hand", weights: W1 },
+  { family: "Gloria Hallelujah", category: "hand", weights: W1 },
+  { family: "Homemade Apple", category: "hand", weights: W1 },
+  { family: "Architects Daughter", category: "hand", weights: W1 },
+  { family: "Nothing You Could Do", category: "hand", weights: W1 },
+  { family: "Reenie Beanie", category: "hand", weights: W1 },
+  { family: "Dancing Script", category: "hand", weights: W2 },
   { family: "JetBrains Mono", category: "mono", weights: W3 },
   { family: "Fira Code", category: "mono", weights: W3 },
   { family: "IBM Plex Mono", category: "mono", weights: W3 },
   { family: "Space Mono", category: "mono", weights: W2 }
 ];
 
-export const CATEGORY_LABEL: Record<FontCategory, string> = { sans: "Sans serif", serif: "Serif", display: "Display", mono: "Monospace" };
+export const CATEGORY_LABEL: Record<FontCategory, string> = { sans: "Sans serif", serif: "Serif", display: "Display", hand: "Handwritten", mono: "Monospace" };
 
 const FALLBACK: Record<FontCategory, string> = {
   sans: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   serif: 'Georgia, "Times New Roman", serif',
   display: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+  hand: '"Segoe Print", "Bradley Hand", cursive',
   mono: 'ui-monospace, Consolas, monospace'
 };
 
@@ -133,4 +144,11 @@ export function googleFontsCssUrl(families: GoogleFont[], text?: string): string
 
 export function themeGoogleFonts(theme: { headingFont: string; bodyFont: string }): GoogleFont[] {
   return [theme.headingFont, theme.bodyFont].filter(isGoogleFont).map((v) => googleFontInfo(googleFamily(v)));
+}
+
+export function pieceGoogleFonts(site: Site): GoogleFont[] {
+  const used = new Set<string>();
+  const sections = [site.header, site.footer, ...site.pages.flatMap((p) => p.sections), ...(site.components ?? []).flatMap((c) => [c.section, ...(c.variants ?? []).map((v) => v.section)])];
+  for (const s of sections) for (const b of s?.blocks ?? []) if (typeof b.props.fontFamily === "string" && isGoogleFont(b.props.fontFamily)) used.add(b.props.fontFamily);
+  return [...used].map((v) => googleFontInfo(googleFamily(v)));
 }
