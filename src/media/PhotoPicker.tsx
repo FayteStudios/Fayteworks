@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { noteUpload } from "../quality/altText";
 import { assetUrl, collectMediaRefs, EDITOR_ONLY_PROPS, getAsset, putAsset, useAssetVersion } from "../state/assets";
 import { useEditor } from "../state/store";
+import { designPicture, designThumbnail } from "../design/exportDesign";
+import type { DesignFormat, Page } from "../model/types";
+import { slugify } from "../util/slug";
 
 interface Result {
   id: string;
@@ -23,7 +26,7 @@ export function describeFromTitle(title: string): string {
   return t.length < 3 ? "" : t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-type Tab = "upload" | "free" | "mine";
+type Tab = "upload" | "free" | "mine" | "designs";
 
 export function PicturePicker({ onPick, onClose, initial = "upload" }: { onPick: (ref: string) => void; onClose: () => void; initial?: Tab }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -42,7 +45,8 @@ export function PicturePicker({ onPick, onClose, initial = "upload" }: { onPick:
             [
               ["upload", "Upload"],
               ["free", "Free photos"],
-              ["mine", "My pictures"]
+              ["mine", "My pictures"],
+              ["designs", "My designs"]
             ] as [Tab, string][]
           ).map(([id, label]) => (
             <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "is-active" : undefined} onClick={() => setTab(id)}>
@@ -54,7 +58,7 @@ export function PicturePicker({ onPick, onClose, initial = "upload" }: { onPick:
           ✕
         </button>
       </header>
-      {tab === "upload" ? <UploadTab onPick={pick} /> : tab === "free" ? <FreePhotos onPick={pick} /> : <MyPictures onPick={pick} />}
+      {tab === "upload" ? <UploadTab onPick={pick} /> : tab === "free" ? <FreePhotos onPick={pick} /> : tab === "designs" ? <MyDesigns onPick={pick} /> : <MyPictures onPick={pick} />}
     </dialog>
   );
 }
@@ -130,6 +134,59 @@ function UploadTab({ onPick }: { onPick: (ref: string) => void }) {
       </form>
       {error && <p className="dialog-status dialog-status--error">{error}</p>}
     </div>
+  );
+}
+
+type Design = Page & { design: DesignFormat };
+
+function DesignThumb({ design }: { design: Design }) {
+  const { state } = useEditor();
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    let live = true;
+    designThumbnail(state.site, design, 240).then(
+      (url) => live && setSrc(url),
+      () => undefined
+    );
+    return () => {
+      live = false;
+    };
+  }, [design]);
+  return src ? <img src={src} alt="" /> : <span className="picture-design-wait">…</span>;
+}
+
+function MyDesigns({ onPick }: { onPick: (ref: string) => void }) {
+  const { state } = useEditor();
+  const designs = state.site.pages.filter((p): p is Design => Boolean(p.design));
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  if (!designs.length) return <p className="panel-hint">No designs yet. Make one with Designs in the left bar (a cover, a sticker, a poster), then pick it here.</p>;
+  async function use(design: Design) {
+    setBusy(design.id);
+    setError("");
+    try {
+      const blob = await designPicture(state.site, design);
+      onPick(await putAsset(new File([blob], `${slugify(design.title) || "design"}.png`, { type: "image/png" })));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(null);
+    }
+  }
+  return (
+    <>
+      <p className="field-hint">Uses the design's first sheet as a picture. It's a copy: after changing the design, pick it again to update it.</p>
+      {error && <p className="dialog-status dialog-status--error">{error}</p>}
+      <ul className="photo-grid picture-designs">
+        {designs.map((d) => (
+          <li key={d.id}>
+            <button onClick={() => void use(d)} disabled={Boolean(busy)} title={`Use “${d.title}”`}>
+              <DesignThumb design={d} />
+              <span>{busy === d.id ? "Making the picture…" : d.title}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 

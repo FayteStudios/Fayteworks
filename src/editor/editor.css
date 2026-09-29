@@ -7043,3 +7043,29 @@ button.outline-toggle:hover {
   padding-top: 10px;
   border-top: 1px solid var(--ui-border);
 }
+
+.picture-designs button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+}
+
+.picture-designs img {
+  max-height: 140px;
+  object-fit: contain;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+}
+
+.picture-designs span {
+  font-size: 12px;
+}
+
+.picture-design-wait {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 120px;
+  color: var(--ui-muted);
+}

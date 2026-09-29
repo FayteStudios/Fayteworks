@@ -42,7 +42,8 @@ export const DESIGN_PRESETS: DesignPreset[] = [
   { id: "story", label: "Story / Reel cover · 1080 × 1920", group: "Social", width: 1080, height: 1920, unit: "px", bleed: 0, folds: 0, sheets: 1 },
   { id: "facebook-cover", label: "Facebook cover · 1640 × 624", group: "Social", width: 1640, height: 624, unit: "px", bleed: 0, folds: 0, sheets: 1 },
   { id: "link-preview", label: "Link preview (Open Graph) · 1200 × 630", group: "Social", width: 1200, height: 630, unit: "px", bleed: 0, folds: 0, sheets: 1 },
-  { id: "youtube-thumb", label: "Video thumbnail · 1280 × 720", group: "Social", width: 1280, height: 720, unit: "px", bleed: 0, folds: 0, sheets: 1 }
+  { id: "youtube-thumb", label: "Video thumbnail · 1280 × 720", group: "Social", width: 1280, height: 720, unit: "px", bleed: 0, folds: 0, sheets: 1 },
+  { id: "book-cover", label: "Book cover · 720 × 960", group: "Social", width: 720, height: 960, unit: "px", bleed: 0, folds: 0, sheets: 1 }
 ];
 
 export const isDesign = (page: Page | undefined): page is Page & { design: DesignFormat } => Boolean(page?.design);

@@ -129,6 +129,12 @@ export function designThumbnail(site: Site, page: Page & { design: DesignFormat 
   return hit;
 }
 
+export async function designPicture(site: Site, page: Page & { design: DesignFormat }): Promise<Blob> {
+  const [first] = await sheetImages(site, page, { format: "png", bleed: false, dpi: 150 });
+  if (!first) throw new Error("The design has no sheets.");
+  return first;
+}
+
 export async function designShareImage(site: Site, page: Page & { design: DesignFormat }): Promise<Blob> {
   assertPublishable(site, page);
   const [first] = await sheetImages(site, page, { format: "jpg", bleed: false, dpi: 96 });
