@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 import type { BlockDefinition } from "../blocks/types";
-import type { Page, PageShell, Section, ShellType, Site } from "./types";
+import type { Block, Page, PageShell, Section, ShellType, Site } from "./types";
 
 export interface ShellOption {
   value: ShellType;
@@ -58,6 +58,13 @@ export interface ExtensionPart {
   runtime?: Runtime;
   /** The script also runs on pages without these pieces (it remembers visits, fills forms…). */
   everyPage?: boolean;
+  uses?: (site: Site) => boolean;
+}
+
+export interface PieceTool {
+  id: string;
+  title: (block: Block) => string;
+  Panel: ComponentType<{ block: Block; section: Section; mutate: (recipe: (b: Block) => void, key?: string) => void }>;
 }
 
 export interface Extension {
@@ -67,11 +74,23 @@ export interface Extension {
   css?: string;
   runtime?: Runtime;
   parts?: ExtensionPart[];
+  pieceTools?: PieceTool[];
+  pieceAttrs?: (block: Block) => Record<string, string> | null;
 }
+
+export const pieceTools: PieceTool[] = [];
 
 const extensionModules = import.meta.glob<{ default: Extension }>("/private/*/extension.tsx", { eager: true });
 
 export const extensions: Extension[] = Object.values(extensionModules).map((m) => m.default);
+pieceTools.push(...extensions.flatMap((e) => e.pieceTools ?? []));
+
+export function pieceAttrs(block: Block): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const e of extensions) Object.assign(attrs, e.pieceAttrs?.(block));
+  if (Object.keys(attrs).length) attrs["data-ext"] = "";
+  return attrs;
+}
 
 export function siteBlockTypes(site: Site): Set<string> {
   const types = new Set<string>();
@@ -83,7 +102,7 @@ export function siteBlockTypes(site: Site): Set<string> {
 
 export function extensionsUsedBy(site: Site): Extension[] {
   const types = siteBlockTypes(site);
-  return extensions.filter((e) => !e.blocks?.length || e.blocks.some((b) => types.has(b.type)));
+  return extensions.filter((e) => !e.blocks?.length || e.blocks.some((b) => types.has(b.type)) || (e.parts ?? []).some((p) => p.uses?.(site)));
 }
 
 export const allExtensionRuntimes: Runtime[] = extensions.flatMap((e) => [e.runtime, ...(e.parts ?? []).map((p) => p.runtime)]).filter((r): r is Runtime => Boolean(r));
@@ -91,7 +110,7 @@ export const allExtensionRuntimes: Runtime[] = extensions.flatMap((e) => [e.runt
 export function extensionCodeFor(site: Site): { css: string; runtimes: Runtime[]; everyPage: boolean } {
   const types = siteBlockTypes(site);
   const used = extensionsUsedBy(site);
-  const parts = used.flatMap((e) => (e.parts ?? []).filter((p) => p.blocks.some((b) => types.has(b))));
+  const parts = used.flatMap((e) => (e.parts ?? []).filter((p) => p.blocks.some((b) => types.has(b)) || p.uses?.(site)));
   return {
     css: [...used.map((e) => e.css ?? ""), ...parts.map((p) => p.css ?? "")].filter(Boolean).join("\n"),
     runtimes: [...used.map((e) => e.runtime), ...parts.map((p) => p.runtime)].filter((r): r is Runtime => Boolean(r)),

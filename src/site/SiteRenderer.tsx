@@ -3,7 +3,7 @@ import { localizedProps } from "../i18n/i18n";
 import { animationMarkup, animationSources } from "../motion/compile";
 import { soundMarkup } from "../motion/sounds";
 import { bindProps } from "../data/model";
-import { cardLayouts } from "../model/extras";
+import { cardLayouts, pieceAttrs } from "../model/extras";
 import { isCardShell, shellOf } from "../model/shells";
 import { gridVars } from "../model/grid";
 import { getBlockDefinition } from "../blocks/registry";
@@ -67,7 +67,7 @@ export function blockMotion(block: Block, sources?: Set<string>, asset?: (src: s
   const timeline = animationMarkup(block);
   const sounds = soundMarkup(block, asset);
   const turn = turnMarkup(block);
-  const attrs: Record<string, string | undefined> = { ...motionAttrs(block), ...timeline?.attrs, ...sounds, ...turn?.attrs };
+  const attrs: Record<string, string | undefined> = { ...motionAttrs(block), ...timeline?.attrs, ...sounds, ...turn?.attrs, ...pieceAttrs(block) };
   if (sources?.has(block.id)) attrs["data-b"] = block.id;
   const style: Record<string, string> = { ...timeline?.style, ...turn?.style };
   if (block.motion?.reveal && block.motion.delay) style["--reveal-delay"] = `${block.motion.delay}ms`;

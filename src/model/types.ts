@@ -29,6 +29,7 @@ export interface Block {
   overhang?: { top?: number; bottom?: number };
   spot?: string;
   turn?: BlockTurn;
+  ext?: Record<string, unknown>;
   props: BlockProps;
 }
 

@@ -12,7 +12,7 @@ import { settleBlocks } from "../model/collisions";
 import { BlockContent, SectionShell, blockStyle, inFlowOrder, mobileHeightOf, sectionRowsByTier, turnMarkup } from "../site/SiteRenderer";
 import { createLayer, isBlockVisible, layerOf, targetLayerId } from "../model/layers";
 import { isCardShell, shellOf } from "../model/shells";
-import { cardLayouts } from "../model/extras";
+import { cardLayouts, pieceAttrs } from "../model/extras";
 import {
   enableCustomLayout,
   hasCustomLayout,
@@ -585,6 +585,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
               )}
               style={{ ...blockStyle(section, block, z), ...(insideHere ? undefined : turnMarkup(block)?.style) } as CSSProperties}
               data-turn={!insideHere && turnMarkup(block) ? "" : undefined}
+              {...pieceAttrs(block)}
               data-section-id={sectionId}
               data-block-id={block.id}
               data-mobile-height={mobileHeightOf(block)}

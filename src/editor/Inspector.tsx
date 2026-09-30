@@ -38,7 +38,7 @@ import { openFramesFor, openTimelineFor } from "./focusTools";
 import { SoundTools } from "../motion/SoundTools";
 import { CollectionTools, ItemPageSetting } from "../data/CollectionTools";
 import { isCardShell, SHELL_OPTIONS, shellFields, shellOf } from "../model/shells";
-import { cardLayouts, extensions } from "../model/extras";
+import { cardLayouts, extensions, pieceTools } from "../model/extras";
 import type { PageShell } from "../model/types";
 import { Badge, BADGES, Hint } from "./Hint";
 import { Icon } from "./icons";
@@ -443,6 +443,12 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
         {block.type === "collection" && !design && <CollectionTools block={block} mutate={mutateBlock} />}
         {block.type === "vector" && <VectorTools block={block} mutate={mutateBlock} />}
         {def?.Tools && <def.Tools block={block} section={section} mutate={mutateBlock} />}
+        {pieceTools.map((t) => (
+          <section key={t.id} className="inspector-group">
+            <h3 className="panel-heading">{t.title(block)}</h3>
+            <t.Panel block={block} section={section} mutate={mutateBlock} />
+          </section>
+        ))}
         {hasCompanions && <SpotField block={block} mutate={mutateBlock} />}
         {block.type === "flipbook" && <FlipbookEntry section={section} block={block} />}
         {(block.type === "video" || block.type === "audio") && <MediaTools block={block} mutate={mutateBlock} />}
@@ -598,6 +604,13 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
       <Fold id="sound" title={block.sounds?.length ? "Sound ●" : "Sound"} forceOpen={focusing}>
         <SoundTools block={block} mutate={mutateBlock} />
       </Fold>
+
+      {!focusing &&
+        pieceTools.map((t) => (
+          <Fold key={t.id} id={t.id} title={t.title(block)}>
+            <t.Panel block={block} section={section} mutate={mutateBlock} />
+          </Fold>
+        ))}
 
       <Fold id="position" title={`Position and size${tier !== "desktop" ? ` · ${TIER_LABEL[tier]}` : ""}`} forceOpen={focusing}>
         {layoutNote && <p className="field-hint inspector-tier-note">{layoutNote}</p>}
