@@ -430,7 +430,7 @@ ${shownBody}${services.bodyEnd.length ? `\n    ${services.bodyEnd.join("\n    ")
     files.push({ path: "site.js", data: encoder.encode(`/* Site behaviours: scroll reveal, carousels, lightbox, tabs, video. */
 // On a password-protected page it waits until the page has been opened.
 (function () {
-  var run = function () { (${initSite.toString()})(document);${cardLayouts ? ` (${cardLayouts.runtime.toString()})(document);` : ""}${extensionCodeFor(site).runtimes.map((run) => ` (${run.toString()})(document);`).join("")} };
+  var run = function () { (${initSite.toString()})(document);${cardLayouts ? [cardLayouts.runtime, ...(cardLayouts.runtimes ?? [])].map((run) => ` (${run.toString()})(document);`).join("") : ""}${extensionCodeFor(site).runtimes.map((run) => ` (${run.toString()})(document);`).join("")} };
   if (document.documentElement.hasAttribute("data-fw-locked")) document.addEventListener("fw:unlocked", run, { once: true });
   else run();
 })();

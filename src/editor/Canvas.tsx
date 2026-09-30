@@ -215,12 +215,12 @@ export function Canvas() {
   useEffect(() => {
     if (editing || !siteRootRef.current) return;
     const stop = initSite(siteRootRef.current);
-    const stopCards = cardLayouts?.runtime(siteRootRef.current);
     const root = siteRootRef.current;
+    const stopCards = [cardLayouts?.runtime, ...(cardLayouts?.runtimes ?? [])].map((run) => run?.(root));
     const stopExtras = allExtensionRuntimes.map((run) => run(root));
     return () => {
       stopExtras.forEach((fn) => fn?.());
-      stopCards?.();
+      stopCards.forEach((fn) => fn?.());
       stop();
     };
   }, [editing, site, page]);

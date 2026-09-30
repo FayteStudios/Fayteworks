@@ -35,6 +35,8 @@ export interface CardLayouts {
   SectionSettings: ComponentType<{ page: Page; section: Section; mutateSection: (recipe: (s: Section) => void, key: string) => void }>;
   css: string;
   runtime: (root: Document | HTMLElement) => () => void;
+  /** More page scripts. Each is sent to the published site as its own text, so it must not use anything from outside its own body. */
+  runtimes?: ((root: Document | HTMLElement) => () => void)[];
   outline?: (pages: Page[]) => PageOutline | null;
   fixedLayout?: (page: Page) => boolean;
 }
