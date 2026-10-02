@@ -1313,6 +1313,18 @@ a.b-gallery-item:hover img {
   scrollbar-width: none;
 }
 
+.site-shell--sideways {
+  scroll-snap-type: none;
+}
+
+.site-shell--sideways .shell-slide {
+  scroll-snap-align: none;
+}
+
+.site-shell--sideways .site-section--bleed .site-section-inner {
+  padding-inline: 0;
+}
+
 .site-shell--horizontal::-webkit-scrollbar {
   display: none;
 }

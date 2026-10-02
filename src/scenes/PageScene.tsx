@@ -28,6 +28,15 @@ function LayoutDiagram({ type }: { type: ShellType }) {
       </span>
     );
   }
+  if (type === "sideways") {
+    return (
+      <span className="layout-diagram layout-diagram--horizontal layout-diagram--sideways">
+        <span />
+        <span />
+        <span />
+      </span>
+    );
+  }
   if (type === "horizontal") {
     return (
       <span className="layout-diagram layout-diagram--horizontal">

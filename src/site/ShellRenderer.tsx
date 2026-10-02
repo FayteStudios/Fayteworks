@@ -16,9 +16,15 @@ export function ShellRenderer({ page, sections }: { page: Page; sections: Sectio
     );
   }
 
-  const horizontal = shell.type === "horizontal";
+  const sideways = shell.type === "sideways";
+  const horizontal = shell.type === "horizontal" || sideways;
   return (
-    <main className={`site-main site-shell site-shell--${shell.type}`} data-js="shell-scroll" data-direction={horizontal ? "x" : "y"}>
+    <main
+      className={`site-main site-shell site-shell--${shell.type}${sideways ? " site-shell--horizontal" : ""}`}
+      data-js="shell-scroll"
+      data-direction={horizontal ? "x" : "y"}
+      data-glide={sideways ? "" : undefined}
+    >
       {sections.map((section, i) => (
         <div key={section.id} className="shell-slide" id={anchors[i]}>
           <StaticSection section={section} role="page" />

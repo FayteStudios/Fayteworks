@@ -539,7 +539,28 @@ export function initSite(root: Document | HTMLElement): () => void {
       })
     );
     listen(horizontal ? shell : (doc.defaultView as Window), "scroll", sync, { passive: true, capture: true });
-    if (horizontal) {
+    if (horizontal && shell.dataset.glide !== undefined) {
+      listen(
+        shell,
+        "wheel",
+        (e) => {
+          const w = e as WheelEvent;
+          const delta = Math.abs(w.deltaY) > Math.abs(w.deltaX) ? w.deltaY : w.deltaX;
+          if (!delta || w.ctrlKey) return;
+          e.preventDefault();
+          shell.scrollLeft += delta * (w.deltaMode === 1 ? 40 : w.deltaMode === 2 ? shell.clientWidth : 1);
+        },
+        { passive: false }
+      );
+      listen(doc, "keydown", (e) => {
+        const key = (e as KeyboardEvent).key;
+        const step = key === "ArrowRight" || key === "ArrowDown" ? 1 : key === "ArrowLeft" || key === "ArrowUp" ? -1 : key === "PageDown" || key === " " ? 4 : key === "PageUp" ? -4 : 0;
+        const target = (e as KeyboardEvent).target as HTMLElement | null;
+        if (!step || target?.closest("input, textarea, select, [contenteditable]")) return;
+        e.preventDefault();
+        shell.scrollBy({ left: step * shell.clientWidth * 0.2, behavior: reducedMotion ? "auto" : "smooth" });
+      });
+    } else if (horizontal) {
       let lastTurn = 0;
       listen(
         shell,

@@ -131,7 +131,7 @@ export interface PageSeo {
   image: string;
 }
 
-export type ShellType = "scroll" | "slides" | "horizontal" | `card${string}`;
+export type ShellType = "scroll" | "slides" | "horizontal" | "sideways" | `card${string}`;
 
 export interface PageShell {
   type: ShellType;

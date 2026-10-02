@@ -5362,6 +5362,9 @@ body.is-resizing-dock-y, body.is-resizing-dock-y * { cursor: row-resize !importa
 .layout-diagram--horizontal { overflow: hidden; }
 .layout-diagram--horizontal span { flex: 0 0 62%; border-radius: 4px; background: #cfc8bc; }
 .layout-diagram--horizontal span + span { background: #d9d4cb; }
+.layout-diagram--sideways { gap: 0; }
+.layout-diagram--sideways span { flex-basis: 45%; border-radius: 0; }
+.layout-diagram--sideways span + span + span { background: #cfc8bc; }
 .layout-diagram--cards { align-items: center; justify-content: center; }
 .layout-diagram--cards span { width: 30px; height: 50px; border-radius: 5px; background: #cfc8bc; }
 .layout-diagram--cards span:nth-child(2) { height: 58px; background: #a4442a; }
