@@ -76,6 +76,7 @@ export interface Extension {
   parts?: ExtensionPart[];
   pieceTools?: PieceTool[];
   pieceAttrs?: (block: Block) => Record<string, string> | null;
+  pieceAfter?: ComponentType<{ block: Block }>;
 }
 
 export const pieceTools: PieceTool[] = [];

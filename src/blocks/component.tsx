@@ -4,7 +4,7 @@ import { componentRows, designsOf, fieldDefFor, fieldsFor, findComponent, frameS
 import { layerIdOf } from "../model/layers";
 import { RenderCtx } from "../site/renderContext";
 import { linkAttrs } from "../site/richText";
-import { BlockContent, blockMotion, blockStyle, hideAttrs, inFlowOrder, mobileHeightOf, sectionRowsByTier } from "../site/SiteRenderer";
+import { BlockContent, PieceAfter, blockMotion, blockStyle, hideAttrs, inFlowOrder, mobileHeightOf, sectionRowsByTier } from "../site/SiteRenderer";
 import { animationSources } from "../motion/compile";
 import { hasCustomLayout } from "../model/responsive";
 import { gridVars } from "../model/grid";
@@ -74,6 +74,7 @@ export const componentDefinitions: BlockDefinition[] = [
                       {...motion.attrs}
                     >
                       <BlockContent block={block} />
+                      <PieceAfter block={block} />
                     </div>
                   );
                 })}

@@ -3,7 +3,7 @@ import { localizedProps } from "../i18n/i18n";
 import { animationMarkup, animationSources } from "../motion/compile";
 import { soundMarkup } from "../motion/sounds";
 import { bindProps } from "../data/model";
-import { cardLayouts, pieceAttrs } from "../model/extras";
+import { cardLayouts, extensions, pieceAttrs } from "../model/extras";
 import { isCardShell, shellOf } from "../model/shells";
 import { gridVars } from "../model/grid";
 import { getBlockDefinition } from "../blocks/registry";
@@ -45,6 +45,18 @@ export function sectionRowsByTier(
 ): Record<Tier, number> {
   const rows = (tier: Tier) => tierRows(section, blocks, tier, preview?.tier === tier ? preview.minRows : undefined);
   return { desktop: rows("desktop"), tablet: rows("tablet"), phone: rows("phone") };
+}
+
+const afterParts = extensions.flatMap((e) => (e.pieceAfter ? [e.pieceAfter] : []));
+
+export function PieceAfter({ block }: { block: Block }) {
+  return (
+    <>
+      {afterParts.map((Part, i) => (
+        <Part key={i} block={block} />
+      ))}
+    </>
+  );
 }
 
 export function motionAttrs(block: Block): Record<string, string | undefined> {
@@ -187,6 +199,7 @@ export function StaticSection({ section, role }: { section: Section; role: Secti
             {...motion.attrs}
           >
             <BlockContent block={block} />
+            <PieceAfter block={block} />
           </div>
         );
       })}
