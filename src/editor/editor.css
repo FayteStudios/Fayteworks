@@ -2557,8 +2557,6 @@ kbd {
 }
 
 .editor-block.is-dragged {
-  position: absolute;
-  inset: 0;
   z-index: 2000 !important;
   opacity: 0.92;
 }
