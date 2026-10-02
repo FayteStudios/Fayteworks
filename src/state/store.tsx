@@ -5,7 +5,7 @@ import { migrateSite } from "../model/migrate";
 import { cardLayouts } from "../model/extras";
 import { findSection } from "../model/ops";
 import type { Page, Site, Orientation } from "../model/types";
-import { tierForWidth, type Tier } from "../model/responsive";
+import { tierForWidth, type EditScope, type Tier } from "../model/responsive";
 import { CUSTOM_SIZE_LIMITS, DEFAULT_CUSTOM_SIZE, DEFAULT_DEVICE_FOR_GROUP, getDevice, viewportSize, type CustomSize } from "./viewport";
 
 export type Selection =
@@ -40,6 +40,7 @@ export interface EditorState {
   canvasWidth: number;
   mode: Mode;
   freeform: boolean;
+  editScope: EditScope;
   focusedLayer: LayerFocus;
   focusedBlock: { sectionId: string; blockId: string } | null;
   componentId: string | null;
@@ -63,6 +64,7 @@ type Action =
   | { type: "setCustomSize"; size: CustomSize }
   | { type: "setMode"; mode: Mode }
   | { type: "setFreeform"; freeform: boolean }
+  | { type: "setEditScope"; scope: EditScope }
   | { type: "focusLayer"; focus: LayerFocus }
   | { type: "focusBlock"; focus: EditorState["focusedBlock"] }
   | { type: "editComponent"; componentId: string | null; variantId?: string | null; anchor?: { sectionId: string; blockId: string } | null }
@@ -73,6 +75,7 @@ const PREFS_KEY = "fayteworks:prefs";
 
 interface Prefs {
   freeform: boolean;
+  editScope: EditScope;
   deviceId: string;
   landscape: boolean;
   customSize: CustomSize;
@@ -89,6 +92,7 @@ function loadPrefs(): Prefs {
   }
   return {
     freeform: saved.freeform === true,
+    editScope: saved.editScope === "all" ? "all" : "screen",
     deviceId: getDevice(String(saved.deviceId ?? DEFAULT_DEVICE_FOR_GROUP.Desktop)).id,
     landscape: saved.landscape === true,
     customSize: {
@@ -100,7 +104,7 @@ function loadPrefs(): Prefs {
 
 function savePrefs(state: EditorState) {
   try {
-    const prefs: Prefs = { freeform: state.freeform, deviceId: state.deviceId, landscape: state.landscape, customSize: state.customSize };
+    const prefs: Prefs = { freeform: state.freeform, editScope: state.editScope, deviceId: state.deviceId, landscape: state.landscape, customSize: state.customSize };
     localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
   } catch {
   }
@@ -234,6 +238,8 @@ function reducer(state: EditorState, action: Action): EditorState {
       return action.width === state.canvasWidth ? state : { ...state, canvasWidth: action.width };
     case "setMode":
       return { ...state, mode: action.mode, selection: { kind: "none" }, focusedBlock: null };
+    case "setEditScope":
+      return { ...state, editScope: action.scope };
     case "setFreeform":
       return { ...state, freeform: action.freeform };
     case "focusLayer":
@@ -275,6 +281,7 @@ function createInitialState(initialSite?: Site): EditorState {
     canvasWidth: 0,
     mode: "edit",
     freeform: prefs.freeform,
+    editScope: prefs.editScope,
     focusedLayer: null,
     focusedBlock: null,
     componentId: null,
@@ -301,6 +308,7 @@ interface EditorContextValue {
   setCustomSize: (size: CustomSize) => void;
   setMode: (mode: Mode) => void;
   setFreeform: (freeform: boolean) => void;
+  setEditScope: (scope: EditScope) => void;
   focusLayer: (focus: LayerFocus) => void;
   focusBlock: (focus: EditorState["focusedBlock"]) => void;
   editComponent: (componentId: string | null, variantId?: string | null, anchor?: { sectionId: string; blockId: string } | null) => void;
@@ -355,6 +363,7 @@ export function EditorProvider({ children, initialSite, persist }: EditorProvide
   const setCanvasWidth = useCallback((width: number) => dispatch({ type: "setCanvasWidth", width }), []);
   const setCustomSize = useCallback((size: CustomSize) => dispatch({ type: "setCustomSize", size }), []);
   const setFreeform = useCallback((freeform: boolean) => dispatch({ type: "setFreeform", freeform }), []);
+  const setEditScope = useCallback((scope: EditScope) => dispatch({ type: "setEditScope", scope }), []);
   const focusLayer = useCallback((focus: LayerFocus) => dispatch({ type: "focusLayer", focus }), []);
   const focusBlock = useCallback((focus: EditorState["focusedBlock"]) => dispatch({ type: "focusBlock", focus }), []);
   const setZoom = useCallback((zoom: number | "fit") => dispatch({ type: "setZoom", zoom }), []);
@@ -363,13 +372,13 @@ export function EditorProvider({ children, initialSite, persist }: EditorProvide
     []
   );
 
-  useEffect(() => savePrefs(state), [state.freeform, state.deviceId, state.landscape, state.customSize]);
+  useEffect(() => savePrefs(state), [state.freeform, state.editScope, state.deviceId, state.landscape, state.customSize]);
 
   const page = state.site.pages.find((p) => p.id === state.pageId) ?? state.site.pages[0];
 
   const value = useMemo(
-    () => ({ state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, focusLayer, focusBlock, editComponent, setZoom }),
-    [state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, focusLayer, focusBlock, editComponent, setZoom]
+    () => ({ state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, focusLayer, focusBlock, editComponent, setZoom }),
+    [state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, focusLayer, focusBlock, editComponent, setZoom]
   );
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;

@@ -15,6 +15,8 @@ import { isCardShell, shellOf } from "../model/shells";
 import { cardLayouts, pieceAttrs } from "../model/extras";
 import {
   enableCustomLayout,
+  ensureOwnLayout,
+  mirrorEdit,
   hasCustomLayout,
   isHiddenAt,
   isStacked,
@@ -172,7 +174,21 @@ export function SectionEditor({ section, role, index, total }: Props) {
   const tier = editorTier(state);
   const orientation = editorOrientation(state);
   const clientLocked = useClientLock();
-  const layoutLocked = isStacked(section, tier) || clientLocked;
+  const ownScreen = tier !== "desktop" && state.editScope === "screen";
+  const layoutLocked = (isStacked(section, tier) && !ownScreen) || clientLocked;
+  const measuredRef = useRef<Map<string, number> | undefined>(undefined);
+  const measureRows = () => {
+    const measured = new Map<string, number>();
+    gridRef.current?.querySelectorAll<HTMLElement>("[data-block-id]").forEach((el) => {
+      measured.set(el.dataset.blockId!, Math.max(1, Math.ceil((el.offsetHeight - 2) / grid.rowHeight)));
+    });
+    return measured;
+  };
+  const ownCopy = () => {
+    const copy = structuredClone(section);
+    ensureOwnLayout(copy, tier, state.editScope, measuredRef.current);
+    return copy;
+  };
   const { selection } = state;
   const selectedIds = selection.kind === "block" && selection.sectionId === sectionId ? selectedBlockIds(selection) : [];
   const primaryBlockId = selectedIds.length > 0 && selection.kind === "block" ? selection.blockId : null;
@@ -182,7 +198,8 @@ export function SectionEditor({ section, role, index, total }: Props) {
   const lastPointer = useRef({ x: 0, y: 0 });
 
   function resolveGesture(targets: Record<string, Rect>, isMove: boolean, alt: boolean, gestureTier: Tier): { preview: Record<string, Rect>; pushed: boolean } {
-    const copy = structuredClone(section);
+    const base = ownCopy();
+    const copy = structuredClone(base);
     for (const [id, r] of Object.entries(targets)) {
       const b = copy.blocks.find((x) => x.id === id);
       if (b) setRect(copy, b, gestureTier, r);
@@ -192,8 +209,8 @@ export function SectionEditor({ section, role, index, total }: Props) {
     let pushed = false;
     for (const b of copy.blocks) {
       const now = rectFor(copy, b, gestureTier);
-      const before = section.blocks.find((x) => x.id === b.id);
-      if (targets[b.id] || (before && !sameRect(now, rectFor(section, before, gestureTier)))) {
+      const before = base.blocks.find((x) => x.id === b.id);
+      if (targets[b.id] || (before && !sameRect(now, rectFor(base, before, gestureTier)))) {
         preview[b.id] = now;
         if (!targets[b.id]) pushed = true;
       }
@@ -279,12 +296,18 @@ export function SectionEditor({ section, role, index, total }: Props) {
         select({ kind: "block", sectionId, blockId: d.clickedId });
       }
       if ((d?.kind === "move" && (d.dc !== 0 || d.dr !== 0)) || (d?.kind === "resize" && !sameRect(d.orig, d.current))) {
+        const scope = state.editScope;
+        const measured = measuredRef.current;
         commit((draft) => {
           const s = findSection(draft, pageId, sectionId);
           if (!s) return;
+          ensureOwnLayout(s, d.tier, scope, measured);
+          const origs: Record<string, Rect> = d.kind === "move" ? d.origs : { [d.blockId]: d.orig };
           for (const [id, r] of Object.entries(d.preview)) {
             const block = s.blocks.find((b) => b.id === id);
-            if (block) setRect(s, block, d.tier, r);
+            if (!block) continue;
+            setRect(s, block, d.tier, r);
+            if (scope === "all" && origs[id]) mirrorEdit(s, block, d.tier, origs[id], r);
           }
         });
       }
@@ -328,9 +351,10 @@ export function SectionEditor({ section, role, index, total }: Props) {
 
   const draggedIds = drag?.kind === "move" ? Object.keys(drag.origs) : drag?.kind === "resize" ? [drag.blockId] : [];
 
-  const blocks = section.blocks.map((b) => {
+  const shown = drag && (drag.kind === "move" || drag.kind === "resize") && ownScreen && !hasCustomLayout(section, tier) ? ownCopy() : section;
+  const blocks = shown.blocks.map((b) => {
     const r = previewRect(b.id);
-    return r && (drag?.kind === "move" || drag?.kind === "resize") ? withRect(section, b, drag.tier, r) : b;
+    return r && (drag?.kind === "move" || drag?.kind === "resize") ? withRect(shown, b, drag.tier, r) : b;
   });
 
   const guides =
@@ -343,7 +367,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
         )
       : [];
   const makingHere = role !== "component" && state.componentAnchor?.sectionId === sectionId ? findComponent(state.site.components, state.componentId) : undefined;
-  const rows = sectionRowsByTier(section, blocks, drag?.kind === "section" ? { tier: drag.tier, minRows: drag.currentRows } : undefined);
+  const rows = sectionRowsByTier(shown, blocks, drag?.kind === "section" ? { tier: drag.tier, minRows: drag.currentRows } : undefined);
 
   function canvasScale(): number {
     const grid = gridRef.current;
@@ -386,6 +410,8 @@ export function SectionEditor({ section, role, index, total }: Props) {
     (document.activeElement as HTMLElement | null)?.blur();
     lastPointer.current = { x: event.clientX, y: event.clientY };
     const blockBox = (event.currentTarget as HTMLElement).closest("[data-block-id]")?.getBoundingClientRect();
+    measuredRef.current = ownScreen && !hasCustomLayout(section, tier) ? measureRows() : undefined;
+    const base = ownCopy();
     const common = {
       tier,
       startX: event.clientX,
@@ -398,13 +424,13 @@ export function SectionEditor({ section, role, index, total }: Props) {
       pushed: false
     };
     if (edges) {
-      const rect = rectFor(section, block, tier);
+      const rect = rectFor(base, base.blocks.find((x) => x.id === blockId) ?? block, tier);
       updateDrag({ kind: "resize", blockId, edges, orig: rect, current: rect, ...common });
     } else {
       const origs: Record<string, Rect> = {};
       for (const id of ids) {
-        const b = section.blocks.find((x) => x.id === id);
-        if (b) origs[id] = rectFor(section, b, tier);
+        const b = base.blocks.find((x) => x.id === id);
+        if (b) origs[id] = rectFor(base, b, tier);
       }
       updateDrag({ kind: "move", clickedId: blockId, origs, dc: 0, dr: 0, ...common });
     }
@@ -509,10 +535,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
   }
 
   function customizeLayout(small: SmallTier) {
-    const measured = new Map<string, number>();
-    gridRef.current?.querySelectorAll<HTMLElement>("[data-block-id]").forEach((el) => {
-      measured.set(el.dataset.blockId!, Math.max(1, Math.ceil((el.offsetHeight - 2) / grid.rowHeight)));
-    });
+    const measured = measureRows();
     commit((draft) => {
       const s = findSection(draft, pageId, sectionId);
       if (s) enableCustomLayout(s, small, measured);
@@ -540,7 +563,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
       onPointerDown={startBand}
     >
       <SectionShell
-        section={section}
+        section={shown}
         role={role}
         rows={rows}
         gridRef={gridRef}
@@ -583,7 +606,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
                 drag && (drag.kind === "move" || drag.kind === "resize") && drag.preview[block.id] && !draggedIds.includes(block.id) && "is-making-room",
                 draggedIds.includes(block.id) && "is-dragged"
               )}
-              style={{ ...blockStyle(section, block, z), ...(insideHere ? undefined : turnMarkup(block)?.style) } as CSSProperties}
+              style={{ ...blockStyle(shown, block, z), ...(insideHere ? undefined : turnMarkup(block)?.style) } as CSSProperties}
               data-turn={!insideHere && turnMarkup(block) ? "" : undefined}
               {...pieceAttrs(block)}
               data-section-id={sectionId}
@@ -695,7 +718,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
                 Reset
               </button>
             </span>
-          ) : (
+          ) : ownScreen ? null : (
             <button
               className="editor-section-customize"
               title={

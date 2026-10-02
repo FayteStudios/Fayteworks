@@ -155,6 +155,8 @@ kbd {
 }
 
 .topbar-viewports {
+  display: flex;
+  flex-shrink: 0;
   padding: 3px;
   background: var(--ui-bg);
   border-radius: var(--ui-radius);
@@ -1071,6 +1073,29 @@ kbd {
 }
 
 .device-rotate.is-active {
+  color: var(--ui-accent);
+}
+
+.scope-switch {
+  align-items: center;
+  gap: 2px;
+}
+
+.scope-switch .seg {
+  white-space: nowrap;
+}
+
+.scope-switch.is-all .seg.is-active {
+  background: var(--ui-accent);
+  color: #fff;
+}
+
+.push-toggle {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.push-toggle.is-active {
   color: var(--ui-accent);
 }
 
@@ -7066,4 +7091,23 @@ button.outline-toggle:hover {
   width: 100%;
   height: 120px;
   color: var(--ui-muted);
+}
+
+@media (max-width: 1500px) {
+  .topbar-site .topbar-name {
+    width: 110px;
+  }
+
+  .topbar {
+    gap: 8px;
+    padding: 0 8px;
+  }
+
+  .device-select {
+    width: 110px;
+  }
+
+  .topbar-viewports .seg {
+    padding: 5px 8px;
+  }
 }

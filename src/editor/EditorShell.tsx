@@ -255,7 +255,7 @@ function useShortcuts() {
 }
 
 function DeviceBar() {
-  const { state, setDevice, setCustomSize } = useEditor();
+  const { state, setDevice, setCustomSize, setEditScope, setFreeform } = useEditor();
   const device = getDevice(state.deviceId, state.customSize);
   const isCustom = device.id === CUSTOM_DEVICE_ID;
   return (
@@ -313,6 +313,36 @@ function DeviceBar() {
         onClick={() => setDevice(device.id, !state.landscape)}
       >
         {state.landscape && canRotate(device) ? "▭" : "▯"}
+      </button>
+      {editorTier(state) !== "desktop" && (
+        <div className={cls("topbar-viewports scope-switch", state.editScope === "all" && "is-all")} role="radiogroup" aria-label="Changes apply to">
+          <button
+            role="radio"
+            aria-checked={state.editScope === "screen"}
+            className={cls("seg", state.editScope === "screen" && "is-active")}
+            title={`Moving, resizing or hiding pieces only changes the ${editorTier(state)} arrangement. Desktop stays as it is.`}
+            onClick={() => setEditScope("screen")}
+          >
+            Only {editorTier(state)}
+          </button>
+          <button
+            role="radio"
+            aria-checked={state.editScope === "all"}
+            className={cls("seg", state.editScope === "all" && "is-active")}
+            title="Moving or resizing a piece here moves it the same way on desktop and the other screen sizes too."
+            onClick={() => setEditScope("all")}
+          >
+            All screens
+          </button>
+        </div>
+      )}
+      <button
+        className={cls("btn btn--ghost push-toggle", !state.freeform && "is-active")}
+        aria-pressed={!state.freeform}
+        title={state.freeform ? "Pieces can overlap: moving one leaves the others where they are. Click to push others aside." : "Moving a piece pushes the ones in its way aside. Click to let pieces overlap instead. Hold Alt while dragging for a one-off."}
+        onClick={() => setFreeform(!state.freeform)}
+      >
+        {state.freeform ? "Overlap" : "Push aside"}
       </button>
     </div>
   );

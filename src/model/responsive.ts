@@ -136,3 +136,27 @@ export function setHiddenAndReflow(section: Section, block: Block, tier: SmallTi
     }
   }
 }
+
+export type EditScope = "screen" | "all";
+
+export function ensureOwnLayout(section: Section, tier: Tier, scope: EditScope, measuredRows?: Map<string, number>): void {
+  if (tier === "desktop" || scope !== "screen" || hasCustomLayout(section, tier)) return;
+  enableCustomLayout(section, tier, measuredRows);
+}
+
+export function mirrorEdit(section: Section, block: Block, tier: Tier, before: Rect, after: Rect): void {
+  const dx = after.x - before.x;
+  const dy = after.y - before.y;
+  const dw = after.w - before.w;
+  const dh = after.h - before.h;
+  if (!dx && !dy && !dw && !dh) return;
+  const cols = gridOf(section).cols;
+  for (const t of TIERS) {
+    if (t === tier) continue;
+    if (t !== "desktop" && !hasCustomLayout(section, t)) continue;
+    if (t === "desktop" && !hasCustomLayout(section, tier)) continue;
+    const r = rectFor(section, block, t);
+    const w = Math.max(1, Math.min(cols, r.w + dw));
+    setRect(section, block, t, { x: Math.max(0, Math.min(cols - w, r.x + dx)), y: Math.max(0, r.y + dy), w, h: Math.max(1, r.h + dh) });
+  }
+}

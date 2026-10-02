@@ -21,7 +21,7 @@ import { cloneBlock, findPage, findSection, componentSection } from "../model/op
 import type { ComponentDef, PageSeo, Orientation } from "../model/types";
 import { useEffect, useState, type ReactNode } from "react";
 import { type Block, type PropValue, type Section, type SectionSettings } from "../model/types";
-import { hasCustomLayout, isHiddenAt, isStacked, rectFor, setHiddenAndReflow, setRect, TIER_LABEL } from "../model/responsive";
+import { ensureOwnLayout, hasCustomLayout, isHiddenAt, isStacked, mirrorEdit, rectFor, setHiddenAndReflow, setRect, TIER_LABEL } from "../model/responsive";
 import { editorTier, selectedBlockIds, useEditor } from "../state/store";
 import { getBlockDefinition as defOf } from "../blocks/registry";
 import { describeBlock } from "./layoutCheck";
@@ -201,13 +201,16 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
       const s = findSection(draft, pageId, section.id);
       const b = s?.blocks.find((x) => x.id === blockId);
       if (!s || !b) return;
-      const r = rectFor(s, b, tier);
+      ensureOwnLayout(s, tier, state.editScope);
+      const before = rectFor(s, b, tier);
+      const r = { ...before };
       const cols = gridOf(s).cols;
       if (key === "x") r.x = Math.max(0, Math.min(n - 1, cols - r.w));
       if (key === "w") r.w = Math.max(1, Math.min(n, cols - r.x));
       if (key === "y") r.y = Math.max(0, n - 1);
       if (key === "h") r.h = Math.max(1, n);
       setRect(s, b, tier, r);
+      if (state.editScope === "all") mirrorEdit(s, b, tier, before, r);
       if (!state.freeform) settleBlocks(s, tier, [b.id], { settle: false });
     }, `${blockId}.layout.${tier}.${key}`);
   }
@@ -219,15 +222,19 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
   const shownFields = focusing || moreSettings || !essentials ? allFields : allFields.filter((x) => extraKeys.has(x.key) || essentials.includes(x.key));
   const hiddenCount = allFields.length - shownFields.length;
   const rect = rectFor(section, block, tier);
-  const stacked = isStacked(section, tier);
+  const ownScreen = tier !== "desktop" && state.editScope === "screen";
+  const stacked = isStacked(section, tier) && !ownScreen;
+  const tierName = TIER_LABEL[tier].toLowerCase();
   const layoutNote =
     tier === "desktop"
       ? null
-      : hasCustomLayout(section, tier)
-        ? `Custom ${TIER_LABEL[tier].toLowerCase()} layout: changes here only affect this size.`
+      : ownScreen
+        ? `Changes here only affect ${tierName} screens.`
         : stacked
-          ? "On phones this section stacks blocks automatically. Use “Customize for phone” on the section toolbar to arrange it by hand."
-          : "Tablets use the desktop arrangement, so changes here also move it on desktop. Use “Customize for tablet” on the section toolbar to arrange it separately.";
+          ? "On phones this section stacks its pieces. Switch the top bar to “Only phone” to place them by hand."
+          : hasCustomLayout(section, tier)
+            ? `Changes here are copied to desktop and the other screen sizes too.`
+            : `This section uses the desktop arrangement on ${tierName}, so changes here move it on desktop too.`;
 
   function reorder(direction: 1 | -1) {
     commit((draft) => {
@@ -390,7 +397,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
             )}
           </div>
           {stacked ? (
-            <p className="field-hint rect-note">On phones this section stacks its pieces. Use Customize for phone on the section bar to place them by hand.</p>
+            <p className="field-hint rect-note">On phones this section stacks its pieces. Switch the top bar to “Only phone” to place them by hand.</p>
           ) : (
             <div className="rect-fields">
               {(
@@ -633,12 +640,14 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
                 commit((draft) => {
                   const s = findSection(draft, pageId, section.id);
                   const b = s?.blocks.find((x) => x.id === blockId);
-                  if (s && b) setHiddenAndReflow(s, b, tier, e.target.checked);
+                  if (!s || !b) return;
+                  if (tier === "tablet") ensureOwnLayout(s, tier, state.editScope);
+                  setHiddenAndReflow(s, b, tier, e.target.checked);
                 })
               }
             />
-            {tier === "tablet" && !hasCustomLayout(section, tier) && (
-              <span className="field-hint">Tablets follow the desktop arrangement here, so hiding leaves a gap. Customize for tablet to close it up.</span>
+            {tier === "tablet" && !ownScreen && !hasCustomLayout(section, tier) && (
+              <span className="field-hint">Tablets follow the desktop arrangement here, so hiding leaves a gap. Switch the top bar to “Only tablet” to close it up.</span>
             )}
           </div>
         )}
@@ -1075,12 +1084,12 @@ function MultiBlockInspector({ section, ids }: { section: Section; ids: string[]
       </ul>
       <p className="field-hint">Shift-click blocks to add or remove them. Drag any of them to move the group.</p>
 
-      {!isStacked(section, tier) && (
+      {(!isStacked(section, tier) || (tier !== "desktop" && state.editScope === "screen")) && (
         <section className="inspector-group">
           <h3 className="panel-heading">Align{tier !== "desktop" ? ` · ${TIER_LABEL[tier]}` : ""}</h3>
           <div className="align-buttons">
             {ALIGN_BUTTONS.map((b) => (
-              <button key={b.mode} className="btn" title={b.title} onClick={() => apply((s) => alignBlocks(s, ids, tier, b.mode))}>
+              <button key={b.mode} className="btn" title={b.title} onClick={() => apply((s) => (ensureOwnLayout(s, tier, state.editScope), alignBlocks(s, ids, tier, b.mode)))}>
                 {b.label}
               </button>
             ))}
