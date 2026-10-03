@@ -325,6 +325,14 @@ export interface ComponentDef {
   variants?: ComponentVariant[];
   source?: string;
   libraryId?: string;
+  /** A fixed shape (in design pixels): the design keeps it and scales as a whole wherever it's placed. */
+  shape?: ComponentShape;
+}
+
+export interface ComponentShape {
+  preset: string;
+  w: number;
+  h: number;
 }
 
 export interface ComponentVariant {
@@ -332,6 +340,8 @@ export interface ComponentVariant {
   name: string;
   section: Section;
   frame: BlockProps;
+  /** Set when this design belongs to one item ("Customise this one"); that item uses it instead of the template. */
+  item?: string;
 }
 
 export interface ComponentField {

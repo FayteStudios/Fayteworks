@@ -4,7 +4,7 @@ import { createId } from "../util/id";
 import { createBlock, createSection } from "./factory";
 import { gridOf } from "./grid";
 import type { FieldDef } from "./fields";
-import { GRID_COLUMNS, ROW_HEIGHT, type ComponentVariant, type Site, type Block, type BlockProps, type ComponentDef, type ComponentField, type PropValue, type Section, type Theme } from "./types";
+import { GRID_COLUMNS, ROW_HEIGHT, type ComponentShape, type ComponentVariant, type Site, type Block, type BlockProps, type ComponentDef, type ComponentField, type PropValue, type Section, type Theme } from "./types";
 
 export const COMPONENT_COLUMN_GAP = 8;
 
@@ -64,6 +64,21 @@ export function componentRows(def: ComponentDef, section: Section = def.section)
   return Math.max(1, section.settings.minRows, ...section.blocks.map((b) => b.y + b.h));
 }
 
+export const SHAPES: { value: string; label: string; w: number; h: number }[] = [
+  { value: "card", label: "Card (5 × 7)", w: 500, h: 700 },
+  { value: "cover", label: "Book cover (3 × 4)", w: 600, h: 800 },
+  { value: "page", label: "Book page", w: 720, h: 960 },
+  { value: "tile", label: "Product tile (4 × 5)", w: 480, h: 600 },
+  { value: "square", label: "Square", w: 600, h: 600 },
+  { value: "wide", label: "Wide (16 × 9)", w: 960, h: 540 }
+];
+
+export const shapeRows = (shape: ComponentShape, section: Pick<Section, "grid">) => Math.max(1, Math.ceil(shape.h / gridOf(section).rowHeight));
+
+export function itemDesign(def: ComponentDef, itemKey: string | undefined): ComponentVariant | undefined {
+  return itemKey ? def.variants?.find((v) => v.item === itemKey) : undefined;
+}
+
 export function variantOf(def: ComponentDef, variantId: unknown): { section: Section; frame: BlockProps; variant?: ComponentVariant } {
   const variant = variantId ? def.variants?.find((v) => v.id === variantId) : undefined;
   return variant ? { section: variant.section, frame: variant.frame, variant } : { section: def.section, frame: def.frame };
@@ -80,6 +95,7 @@ export function createVariant(def: ComponentDef, name: string, from: { section: 
 }
 
 export function designWidth(def: ComponentDef, theme: Theme, screenWidth = theme.maxWidth, phone = false): number {
+  if (def.shape) return def.shape.w;
   const content = Math.max(240, Math.min(screenWidth, theme.maxWidth) - 48);
   if (phone) return Math.round(content);
   const column = (content - 16 * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
@@ -87,6 +103,11 @@ export function designWidth(def: ComponentDef, theme: Theme, screenWidth = theme
 }
 
 export function placedSize(def: ComponentDef): { w: number; h: number } {
+  if (def.shape) {
+    const column = (1152 - 16 * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
+    const width = def.columns * column + (def.columns - 1) * 16;
+    return { w: def.columns, h: Math.max(2, Math.ceil((width * def.shape.h) / def.shape.w / ROW_HEIGHT)) };
+  }
   const padding = Number(def.frame.padding ?? 0);
   const height = componentRows(def) * gridOf(def.section).rowHeight + padding * 2;
   return { w: def.columns, h: Math.max(2, Math.ceil(height / ROW_HEIGHT)) };
@@ -112,7 +133,7 @@ export function fieldDefault(def: ComponentDef, field: ComponentField): PropValu
 }
 
 export function fieldsFor(def: ComponentDef, variantId: unknown): ComponentField[] {
-  const design = typeof variantId === "string" && def.variants?.some((v) => v.id === variantId) ? variantId : "";
+  const design = typeof variantId === "string" && def.variants?.some((v) => v.id === variantId && !v.item) ? variantId : "";
   return def.fields.filter((f) => !f.variants || f.variants.includes(design));
 }
 
@@ -123,11 +144,12 @@ export function designsWithPiece(def: ComponentDef, blockId: string): string[] |
   return having.length === all.length ? undefined : having;
 }
 
-export function resolveComponent(def: ComponentDef, values: BlockProps): { blocks: Block[]; frame: BlockProps; section: Section } {
-  const design = variantOf(def, values.variant);
+export function resolveComponent(def: ComponentDef, values: BlockProps, itemKey?: string): { blocks: Block[]; frame: BlockProps; section: Section } {
+  const own = itemDesign(def, itemKey);
+  const design = own ? variantOf(def, own.id) : variantOf(def, values.variant);
   const frame = { ...DEFAULT_FRAME, ...design.frame };
   const overrides = new Map<string, BlockProps>();
-  for (const field of fieldsFor(def, values.variant)) {
+  for (const field of fieldsFor(def, own ? own.id : values.variant)) {
     if (!(field.id in values)) continue;
     if (field.blockId === FRAME) frame[field.prop] = values[field.id];
     else overrides.set(field.blockId, { ...overrides.get(field.blockId), [field.prop]: values[field.id] });

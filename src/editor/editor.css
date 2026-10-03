@@ -1988,6 +1988,16 @@ kbd {
   outline-offset: 6px;
 }
 
+.cmp-inline-shaped {
+  overflow: visible;
+  outline: 2px dashed rgb(79 140 255 / 0.8);
+}
+
+.cmp-maker-frame--shaped {
+  outline: 2px dashed rgb(79 140 255 / 0.8);
+  outline-offset: 0;
+}
+
 .cmp-maker-hint {
   max-width: 520px;
   margin: 0;
@@ -2707,6 +2717,50 @@ kbd {
 
 .cmp-variant-tabs .cmp-variant-add {
   border-style: dashed;
+}
+
+.cmp-item-strip {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.cmp-item-strip button {
+  max-width: 180px;
+  overflow: hidden;
+  padding: 3px 10px;
+  border: 1px solid rgb(217 204 255 / 0.3);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cmp-item-strip button.has-own::after {
+  content: " ✎";
+}
+
+.cmp-item-strip button.is-active {
+  border-color: #d9ccff;
+  background: #d9ccff;
+  color: #2a2140;
+}
+
+.cmp-item-strip .cmp-item-act {
+  border-color: #ffd27a;
+  color: #ffd27a;
+}
+
+.cmp-item-note {
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.75;
 }
 
 .cmp-card-library {

@@ -90,7 +90,7 @@ export const collectionDefinitions: BlockDefinition[] = [
         >
           {items.map((item, i) => (
             <div key={item.id} className="b-collection-item" data-tags={tagField ? tagsOf(item).join("|").toLowerCase() : undefined} data-more={hasMore && i >= initial ? "" : undefined} hidden={hasMore && i >= initial ? true : undefined}>
-              {component.render({ componentId: str(p.componentId) }, { ...ctx, item: { values: itemValues(collection, item), url: template ? itemHref(template, item.slug) : "#" } }, { id: `${meta.id}-${item.id}` })}
+              {component.render({ componentId: str(p.componentId) }, { ...ctx, item: { values: itemValues(collection, item), url: template ? itemHref(template, item.slug) : "#", key: item.id } }, { id: `${meta.id}-${item.id}` })}
             </div>
           ))}
         </div>

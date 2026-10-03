@@ -46,6 +46,8 @@ export interface EditorState {
   componentId: string | null;
   componentVariantId: string | null;
   componentAnchor: { sectionId: string; blockId: string } | null;
+  /** The item shown while designing a template (its key), or null for the template's own sample. */
+  componentItem: string | null;
   zoom: number | "fit";
   lastCommitKey: string | null;
   lastCommitAt: number;
@@ -65,6 +67,7 @@ type Action =
   | { type: "setMode"; mode: Mode }
   | { type: "setFreeform"; freeform: boolean }
   | { type: "setEditScope"; scope: EditScope }
+  | { type: "setComponentItem"; item: string | null }
   | { type: "focusLayer"; focus: LayerFocus }
   | { type: "focusBlock"; focus: EditorState["focusedBlock"] }
   | { type: "editComponent"; componentId: string | null; variantId?: string | null; anchor?: { sectionId: string; blockId: string } | null }
@@ -238,6 +241,8 @@ function reducer(state: EditorState, action: Action): EditorState {
       return action.width === state.canvasWidth ? state : { ...state, canvasWidth: action.width };
     case "setMode":
       return { ...state, mode: action.mode, selection: { kind: "none" }, focusedBlock: null };
+    case "setComponentItem":
+      return { ...state, componentItem: action.item };
     case "setEditScope":
       return { ...state, editScope: action.scope };
     case "setFreeform":
@@ -257,6 +262,7 @@ function reducer(state: EditorState, action: Action): EditorState {
         ...state,
         componentId: action.componentId,
         componentVariantId: action.componentId ? (action.variantId ?? null) : null,
+        componentItem: action.componentId && action.componentId === state.componentId ? state.componentItem : null,
         mode: "edit",
         selection: { kind: "none" },
         focusedLayer: null,
@@ -287,6 +293,7 @@ function createInitialState(initialSite?: Site): EditorState {
     componentId: null,
     componentVariantId: null,
     componentAnchor: null,
+    componentItem: null,
     zoom: "fit",
     lastCommitKey: null,
     lastCommitAt: 0
@@ -309,6 +316,7 @@ interface EditorContextValue {
   setMode: (mode: Mode) => void;
   setFreeform: (freeform: boolean) => void;
   setEditScope: (scope: EditScope) => void;
+  setComponentItem: (item: string | null) => void;
   focusLayer: (focus: LayerFocus) => void;
   focusBlock: (focus: EditorState["focusedBlock"]) => void;
   editComponent: (componentId: string | null, variantId?: string | null, anchor?: { sectionId: string; blockId: string } | null) => void;
@@ -364,6 +372,7 @@ export function EditorProvider({ children, initialSite, persist }: EditorProvide
   const setCustomSize = useCallback((size: CustomSize) => dispatch({ type: "setCustomSize", size }), []);
   const setFreeform = useCallback((freeform: boolean) => dispatch({ type: "setFreeform", freeform }), []);
   const setEditScope = useCallback((scope: EditScope) => dispatch({ type: "setEditScope", scope }), []);
+  const setComponentItem = useCallback((item: string | null) => dispatch({ type: "setComponentItem", item }), []);
   const focusLayer = useCallback((focus: LayerFocus) => dispatch({ type: "focusLayer", focus }), []);
   const focusBlock = useCallback((focus: EditorState["focusedBlock"]) => dispatch({ type: "focusBlock", focus }), []);
   const setZoom = useCallback((zoom: number | "fit") => dispatch({ type: "setZoom", zoom }), []);
@@ -377,8 +386,8 @@ export function EditorProvider({ children, initialSite, persist }: EditorProvide
   const page = state.site.pages.find((p) => p.id === state.pageId) ?? state.site.pages[0];
 
   const value = useMemo(
-    () => ({ state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, focusLayer, focusBlock, editComponent, setZoom }),
-    [state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, focusLayer, focusBlock, editComponent, setZoom]
+    () => ({ state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, setComponentItem, focusLayer, focusBlock, editComponent, setZoom }),
+    [state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, setComponentItem, focusLayer, focusBlock, editComponent, setZoom]
   );
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;

@@ -11,6 +11,21 @@ export function initSite(root: Document | HTMLElement): () => void {
   const reducedMotion = doc.defaultView?.matchMedia("(prefers-reduced-motion: reduce)").matches ?? false;
   const flag = host.matches(".site-root") ? host : host.querySelector<HTMLElement>(".site-root") ?? host;
 
+  const shaped = all(".b-component--shaped");
+  if (shaped.length && doc.defaultView?.ResizeObserver) {
+    const fit = (el: HTMLElement) => {
+      const box = el.querySelector<HTMLElement>(":scope > .cmp-shape");
+      const w = Number(el.dataset.shapeW) || 0;
+      if (box && w && el.offsetWidth) box.style.setProperty("--k", String(el.offsetWidth / w));
+    };
+    const ro = new doc.defaultView.ResizeObserver((entries) => entries.forEach((e) => fit(e.target as HTMLElement)));
+    shaped.forEach((el) => {
+      fit(el);
+      ro.observe(el);
+    });
+    cleanups.push(() => ro.disconnect());
+  }
+
   const win = doc.defaultView as (Window & { fayteworks?: FayteWorksApi; AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }) | null;
   if (win && !win.fayteworks) {
     const KEY = "fw-visitor";

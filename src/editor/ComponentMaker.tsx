@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { CardItemProvider, useCardSource } from "./cardSource";
+import { CardItemProvider, useCardSource, useTemplateItems } from "./cardSource";
+import { ShapeBox } from "../blocks/component";
 import { getBlockDefinition } from "../blocks/registry";
 import { bundleAssets, restoreAssets, type AssetBundle } from "../export/bundle";
 import { downloadBlob } from "../export/output";
@@ -20,7 +21,10 @@ import {
   FRAME_FIELDS,
   frameStyle,
   newField,
-  placedSize
+  placedSize,
+  shapeRows,
+  SHAPES,
+  itemDesign
 } from "../model/components";
 import { slugify } from "../model/factory";
 import type { FieldDef } from "../model/fields";
@@ -418,6 +422,83 @@ export function MakerBar({ def }: { def: ComponentDef }) {
         Done
       </button>
       <VariantTabs def={def} />
+      <ItemStrip def={def} />
+    </div>
+  );
+}
+
+export function MakerItemBar({ def }: { def: ComponentDef }) {
+  const items = useTemplateItems();
+  if (!items.length) return null;
+  return (
+    <div className="cmp-maker-bar cmp-maker-bar--items" onPointerDown={(e) => e.stopPropagation()}>
+      <ItemStrip def={def} />
+    </div>
+  );
+}
+
+function ItemStrip({ def }: { def: ComponentDef }) {
+  const { state, commit, editComponent, setComponentItem } = useEditor();
+  const items = useTemplateItems();
+  if (!items.length) return null;
+  const current = items.find((i) => i.key === state.componentItem) ?? null;
+  const own = current ? itemDesign(def, current.key) : undefined;
+  const show = (key: string | null) => {
+    setComponentItem(key);
+    editComponent(def.id, (key && itemDesign(def, key)?.id) || null);
+  };
+  return (
+    <div className="cmp-item-strip" role="tablist" aria-label="Items">
+      <span className="cmp-variant-label">Items:</span>
+      <button role="tab" aria-selected={!current} className={!current ? "is-active" : undefined} onClick={() => show(null)}>
+        Template
+      </button>
+      {items.map((it) => (
+        <button
+          key={it.key}
+          role="tab"
+          aria-selected={current?.key === it.key}
+          className={[current?.key === it.key && "is-active", itemDesign(def, it.key) && "has-own"].filter(Boolean).join(" ") || undefined}
+          title={itemDesign(def, it.key) ? "Has its own design" : "Uses the template"}
+          onClick={() => show(it.key)}
+        >
+          {it.title}
+        </button>
+      ))}
+      {current && !own && (
+        <button
+          className="cmp-item-act"
+          title="Give this item its own copy of the design. Its fields still fill in; the others keep the template."
+          onClick={() => {
+            const made = { ...createVariant(def, current.title, variantOf(def, null)), item: current.key };
+            commit((draft) => {
+              const d = draft.components?.find((c) => c.id === def.id);
+              if (d) d.variants = [...(d.variants ?? []), made];
+            });
+            editComponent(def.id, made.id);
+          }}
+        >
+          ✎ Customise this one
+        </button>
+      )}
+      {current && own && (
+        <button
+          className="cmp-item-act"
+          title="Throw away this item's own design; it uses the template again."
+          onClick={() => {
+            commit((draft) => {
+              const d = draft.components?.find((c) => c.id === def.id);
+              if (d) d.variants = (d.variants ?? []).filter((v) => v.id !== own.id);
+            });
+            editComponent(def.id, null);
+          }}
+        >
+          ↺ Use the template again
+        </button>
+      )}
+      <span className="cmp-item-note">
+        {!current ? "Editing the template: every item uses it." : own ? `Editing ${current.title}'s own design.` : `Showing ${current.title} in the template. Changes here change every item.`}
+      </span>
     </div>
   );
 }
@@ -428,7 +509,9 @@ function VariantTabs({ def }: { def: ComponentDef }) {
   return (
     <div className="cmp-variant-tabs" role="tablist" aria-label="Variants">
       <span className="cmp-variant-label">Variants:</span>
-      {designsOf(def).map((d) => (
+      {designsOf(def)
+        .filter((d) => !("item" in d && d.item))
+        .map((d) => (
         <button key={d.id || "default"} role="tab" aria-selected={d.id === current} className={d.id === current ? "is-active" : undefined} onClick={() => editComponent(def.id, d.id || null)}>
           {d.name}
         </button>
@@ -463,8 +546,8 @@ export function MakerStage({ def, screenWidth }: { def: ComponentDef; screenWidt
   return (
     <div className="cmp-maker-root">
       <div
-        className="b-component cmp-maker-frame"
-        style={{ ...frameStyle(frame, asset), width } as CSSProperties}
+        className={def.shape ? "b-component cmp-maker-frame cmp-maker-frame--shaped" : "b-component cmp-maker-frame"}
+        style={{ ...frameStyle(frame, asset), width, height: def.shape?.h } as CSSProperties}
         onPointerDown={(e) => {
           if (e.target === e.currentTarget) {
             e.stopPropagation();
@@ -495,11 +578,20 @@ export function InlineMaker({ def }: { def: ComponentDef }) {
   const card = useCardSource();
   const design = variantOf(def, state.componentVariantId);
   const frame = { ...DEFAULT_FRAME, ...design.frame };
-  const maker = (
+  const editor = (
+    <CardItemProvider>
+      <SectionEditor section={design.section} role="component" index={0} total={1} />
+    </CardItemProvider>
+  );
+  const maker = def.shape ? (
+    <div className="b-component b-component--shaped cmp-inline-shaped" style={{ aspectRatio: `${def.shape.w} / ${def.shape.h}` }} onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <ShapeBox w={def.shape.w} h={def.shape.h} style={frameStyle(frame, asset) as CSSProperties}>
+        {editor}
+      </ShapeBox>
+    </div>
+  ) : (
     <div className="b-component cmp-inline-frame" style={frameStyle(frame, asset) as CSSProperties} onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-      <CardItemProvider>
-        <SectionEditor section={design.section} role="component" index={0} total={1} />
-      </CardItemProvider>
+      {editor}
     </div>
   );
   if (!card?.block) return maker;
@@ -573,6 +665,55 @@ export function ComponentInspector({ def }: { def: ComponentDef }) {
       </section>
 
       <section className="inspector-group">
+        <label className="field">
+          <span className="field-label">Shape</span>
+          <select
+            value={def.shape ? (SHAPES.some((s) => s.value === def.shape?.preset) ? def.shape.preset : "custom") : ""}
+            onChange={(e) =>
+              update((d) => {
+                const v = e.target.value;
+                if (!v) {
+                  delete d.shape;
+                  return;
+                }
+                const preset = SHAPES.find((s) => s.value === v);
+                d.shape = preset ? { preset: v, w: preset.w, h: preset.h } : { preset: "custom", w: d.shape?.w ?? 600, h: d.shape?.h ?? 600 };
+                for (const design of designsOf(d)) design.section.settings.minRows = Math.max(design.section.settings.minRows, shapeRows(d.shape, design.section));
+              }, `${def.id}.shape`)
+            }
+          >
+            <option value="">Free (flows with the page)</option>
+            {SHAPES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+            <option value="custom">Custom size…</option>
+          </select>
+          <span className="field-hint">A shape keeps the design exactly as drawn and scales it as a whole wherever it's placed, like a picture. Good for cards, covers and product tiles.</span>
+        </label>
+        {def.shape?.preset === "custom" && (
+          <div className="field-row">
+            {(["w", "h"] as const).map((k) => (
+              <label key={k} className="field">
+                <span className="field-label">{k === "w" ? "Width (px)" : "Height (px)"}</span>
+                <input
+                  type="number"
+                  min={100}
+                  max={2400}
+                  value={def.shape?.[k] ?? 600}
+                  onChange={(e) =>
+                    update((d) => {
+                      if (!d.shape) return;
+                      d.shape[k] = Math.max(100, Math.min(2400, Math.round(Number(e.target.value) || 600)));
+                      for (const design of designsOf(d)) design.section.settings.minRows = Math.max(design.section.settings.minRows, shapeRows(d.shape, design.section));
+                    }, `${def.id}.shape.${k}`)
+                  }
+                />
+              </label>
+            ))}
+          </div>
+        )}
         <GridPrecisionField
           value={densityOf(def.section)}
           onChange={(d) =>

@@ -1499,6 +1499,29 @@ a.b-gallery-item:hover img {
   min-height: 0;
 }
 
+.b-component.b-component--shaped {
+  flex: 0 0 auto;
+  width: 100%;
+  overflow: clip;
+  overflow-clip-margin: 48px;
+  container-type: inline-size;
+  background: none;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+}
+
+.cmp-shape {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  flex: none;
+  transform-origin: 0 0;
+  --k-css: calc(100cqw / (var(--shape-w) * 1px));
+  transform: scale(var(--k, var(--k-css)));
+}
+
 .b-component-link {
   position: absolute;
   inset: 0;

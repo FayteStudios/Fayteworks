@@ -3,7 +3,7 @@ import { markdownText, readingMinutes } from "../site/markdown";
 import { createId } from "../util/id";
 import { slugify } from "../util/slug";
 
-export type ItemContext = { values: Record<string, string | number | boolean>; url: string };
+export type ItemContext = { values: Record<string, string | number | boolean>; url: string; key?: string };
 
 const TOKEN = /\{\{\s*item\.([\w-]+)\s*\}\}/g;
 

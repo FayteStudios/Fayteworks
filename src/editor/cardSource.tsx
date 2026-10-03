@@ -90,12 +90,37 @@ export function itemFieldsOf(collection: Collection): ItemField[] {
   return out;
 }
 
+export interface TemplateItem {
+  key: string;
+  title: string;
+  item: ItemContext;
+}
+
+/** The items a template is filled with while designing it: the collection it shows. */
+export function useTemplateItems(): TemplateItem[] {
+  const source = useCardSource();
+  return useMemo(() => {
+    const collection = source?.collection;
+    if (!collection) return [];
+    const titleKey = collection.fields.find((f) => f.type === "text")?.key;
+    return collection.items.map((it) => ({
+      key: it.id,
+      title: String((titleKey && it.values[titleKey]) || it.slug || "Item"),
+      item: { values: itemValues(collection, it), url: "#", key: it.id }
+    }));
+  }, [source?.collection]);
+}
+
 export function CardItemProvider({ children }: { children: ReactNode }) {
   const source = useCardSource();
+  const items = useTemplateItems();
+  const { state } = useEditor();
   const ctx = useRenderContext();
-  if (!source?.item) return <>{children}</>;
+  const chosen = state.componentItem ? items.find((i) => i.key === state.componentItem)?.item : undefined;
+  const item = chosen ?? source?.item;
+  if (!item) return <>{children}</>;
   return (
-    <RenderCtx.Provider value={{ ...ctx, item: source.item }}>
+    <RenderCtx.Provider value={{ ...ctx, item }}>
       {children}
     </RenderCtx.Provider>
   );

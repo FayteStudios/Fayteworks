@@ -15,7 +15,7 @@ import { getDevice, viewportSize } from "../state/viewport";
 import { useIssues } from "./issues";
 import { scanLayout } from "./layoutCheck";
 import { AddSectionButton, SectionEditor } from "./SectionEditor";
-import { MakerBar, MakerStage } from "./ComponentMaker";
+import { MakerBar, MakerItemBar, MakerStage } from "./ComponentMaker";
 import { findComponent } from "../model/components";
 import { cls } from "../util/cls";
 
@@ -433,7 +433,7 @@ export function Canvas() {
       onPointerDownCapture={(event) => {
         if (!state.focusedBlock) return;
         const target = event.target as HTMLElement;
-        if (target.closest(".is-focus-target, .focus-bar, .inline-toolbar")) return;
+        if (target.closest(".is-focus-target, .focus-bar, .inline-toolbar, .cmp-maker-bar")) return;
         event.stopPropagation();
         event.preventDefault();
         focusBlock(null);
@@ -441,6 +441,7 @@ export function Canvas() {
       onPointerDown={() => editing && select({ kind: "none" })}
     >
       {making && !makingInPlace && <MakerBar def={making} />}
+      {making && makingInPlace && <MakerItemBar def={making} />}
       {size ? (
         <>
           <div className="editor-device-label">

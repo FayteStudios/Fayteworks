@@ -27,7 +27,7 @@ export interface RenderContext {
   pages?: Page[];
   collections?: Collection[];
   templatePages?: Record<string, string>;
-  item?: { values: Record<string, string | number | boolean>; url: string };
+  item?: { values: Record<string, string | number | boolean>; url: string; key?: string };
   pageUrl?: string;
   lang?: string;
   alternates?: { code: string; label: string; href: string; current: boolean }[];

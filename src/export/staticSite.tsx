@@ -367,7 +367,7 @@ export async function buildStaticSite(site: Site, options: StaticSiteOptions = {
     if (!locked) searchEntries.push({ ...searchEntry(body, dir, page.title === site.name || !page.title ? site.name : page.title, page.seo.description), ...(languages.length > 1 ? { l: lang } : {}) });
     usesSearch ||= body.includes('data-js="search"');
 
-    const pageNeedsScript = extensionsEveryPage || /data-(js|reveal|parallax|draw-anim|anim|sound|ext)=/.test(body);
+    const pageNeedsScript = extensionsEveryPage || /data-(js|reveal|parallax|draw-anim|anim|sound|ext|shape-w)=/.test(body);
     needsScript ||= pageNeedsScript;
     const isHome = page.id === homePageId;
     const title = isHome ? site.name : `${page.title} · ${site.name}`;
