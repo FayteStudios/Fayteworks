@@ -12,18 +12,33 @@ export function initSite(root: Document | HTMLElement): () => void {
   const flag = host.matches(".site-root") ? host : host.querySelector<HTMLElement>(".site-root") ?? host;
 
   const shaped = all(".b-component--shaped");
-  if (shaped.length && doc.defaultView?.ResizeObserver) {
+  const view = doc.defaultView;
+  if (shaped.length && view?.ResizeObserver) {
     const fit = (el: HTMLElement) => {
       const box = el.querySelector<HTMLElement>(":scope > .cmp-shape");
       const w = Number(el.dataset.shapeW) || 0;
-      if (box && w && el.offsetWidth) box.style.setProperty("--k", String(el.offsetWidth / w));
+      if (box && w && el.offsetWidth) box.style.setProperty("--shape-k", String(el.offsetWidth / w));
+      if (box && w && el.offsetWidth && el.offsetHeight && el.classList.contains("is-stretch")) box.style.setProperty("--shape-vh", `${(w * el.offsetHeight) / el.offsetWidth}px`);
     };
-    const ro = new doc.defaultView.ResizeObserver((entries) => entries.forEach((e) => fit(e.target as HTMLElement)));
-    shaped.forEach((el) => {
+    const ro = new view.ResizeObserver((entries) => entries.forEach((e) => fit(e.target as HTMLElement)));
+    const watch = (el: HTMLElement) => {
       fit(el);
       ro.observe(el);
+    };
+    shaped.forEach(watch);
+    const mo = new view.MutationObserver((records) => {
+      for (const r of records)
+        r.addedNodes.forEach((n) => {
+          if (!(n instanceof view.HTMLElement)) return;
+          if (n.matches(".b-component--shaped")) watch(n);
+          n.querySelectorAll<HTMLElement>(".b-component--shaped").forEach(watch);
+        });
     });
-    cleanups.push(() => ro.disconnect());
+    mo.observe(host, { childList: true, subtree: true });
+    cleanups.push(() => {
+      ro.disconnect();
+      mo.disconnect();
+    });
   }
 
   const win = doc.defaultView as (Window & { fayteworks?: FayteWorksApi; AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }) | null;

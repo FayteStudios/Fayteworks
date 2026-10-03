@@ -81,6 +81,8 @@ export interface Extension {
   pieceTools?: PieceTool[];
   pieceAttrs?: (block: Block) => Record<string, string> | null;
   pieceAfter?: ComponentType<{ block: Block }>;
+  /** The items a template is drawn for when one of this extension's pieces uses it, or null. */
+  templateSource?: (site: Site, componentId: string) => Collection | null;
 }
 
 export const pieceTools: PieceTool[] = [];
@@ -89,6 +91,14 @@ const extensionModules = import.meta.glob<{ default: Extension }>("/private/*/ex
 
 export const extensions: Extension[] = Object.values(extensionModules).map((m) => m.default);
 pieceTools.push(...extensions.flatMap((e) => e.pieceTools ?? []));
+
+export function templateSourceFor(site: Site, componentId: string): Collection | null {
+  for (const source of [cardLayouts?.templateSource, ...extensions.map((e) => e.templateSource)]) {
+    const found = source?.(site, componentId);
+    if (found) return found;
+  }
+  return null;
+}
 
 export function pieceAttrs(block: Block): Record<string, string> {
   const attrs: Record<string, string> = {};

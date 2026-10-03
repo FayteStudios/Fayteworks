@@ -69,6 +69,7 @@ export const SHAPES: { value: string; label: string; w: number; h: number }[] = 
   { value: "tarot", label: "Tall card (8 × 13)", w: 520, h: 845 },
   { value: "cover", label: "Book cover (3 × 4)", w: 600, h: 800 },
   { value: "page", label: "Book page", w: 720, h: 960 },
+  { value: "spine", label: "Book spine", w: 100, h: 800 },
   { value: "tile", label: "Product tile (4 × 5)", w: 480, h: 600 },
   { value: "square", label: "Square", w: 600, h: 600 },
   { value: "wide", label: "Wide (16 × 9)", w: 960, h: 540 }

@@ -1994,6 +1994,7 @@ kbd {
 }
 
 .cmp-maker-frame--shaped {
+  container-type: size;
   outline: 2px dashed rgb(79 140 255 / 0.8);
   outline-offset: 0;
 }

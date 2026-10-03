@@ -1518,8 +1518,22 @@ a.b-gallery-item:hover img {
   box-sizing: border-box;
   flex: none;
   transform-origin: 0 0;
-  --k-css: calc(100cqw / (var(--shape-w) * 1px));
-  transform: scale(var(--k, var(--k-css)));
+  container-type: size;
+  --shape-k-css: calc(100cqw / (var(--shape-w) * 1px));
+  transform: scale(var(--shape-k, var(--shape-k-css)));
+}
+
+.b-component.b-component--shaped.is-stretch {
+  height: 100%;
+  container-type: size;
+}
+
+.is-stretch > .cmp-shape {
+  height: var(--shape-vh, calc(var(--shape-h) * 1px)) !important;
+}
+
+.is-stretch > .cmp-shape > .cmp-grid {
+  --row-h: calc(var(--shape-vh, calc(var(--shape-h) * 1px)) / var(--rows)) !important;
 }
 
 .b-component-link {

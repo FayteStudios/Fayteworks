@@ -19,14 +19,18 @@ export function ShapeBox({ w, h, style, children }: { w: number; h: number; styl
     const box = ref.current;
     const host = box?.parentElement;
     if (!box || !host) return;
-    const fit = () => host.offsetWidth && box.style.setProperty("--k", String(host.offsetWidth / w));
+    const fit = () => {
+      if (!host.offsetWidth) return;
+      box.style.setProperty("--shape-k", String(host.offsetWidth / w));
+      if (host.classList.contains("is-stretch") && host.offsetHeight) box.style.setProperty("--shape-vh", `${(w * host.offsetHeight) / host.offsetWidth}px`);
+    };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(host);
     return () => ro.disconnect();
-  }, [w]);
+  }, [w, h]);
   return (
-    <div ref={ref} className="b-component cmp-shape" style={{ ...style, width: w, height: h, "--shape-w": w } as CSSProperties}>
+    <div ref={ref} className="b-component cmp-shape" style={{ ...style, width: w, height: h, "--shape-w": w, "--shape-h": h } as CSSProperties}>
       {children}
     </div>
   );
@@ -104,7 +108,13 @@ export const componentDefinitions: BlockDefinition[] = [
       );
       if (shape)
         return (
-          <div className={classes.filter(Boolean).join(" ") + " b-component--shaped"} style={{ aspectRatio: `${shape.w} / ${shape.h}` }} data-component={def.id} data-shape-w={shape.w}>
+          <div
+            className={classes.filter(Boolean).join(" ") + " b-component--shaped" + (p.fit === "stretch" ? " is-stretch" : "")}
+            style={p.fit === "stretch" ? undefined : { aspectRatio: `${shape.w} / ${shape.h}` }}
+            data-component={def.id}
+            data-shape-w={shape.w}
+            data-shape-h={shape.h}
+          >
             <ShapeBox w={shape.w} h={shape.h} style={frameStyle(frame, ctx.asset)}>
               {inner}
             </ShapeBox>

@@ -3,7 +3,7 @@ import { itemValues, visibleItems, type ItemContext } from "../data/model";
 import type { Block, Collection, PropValue } from "../model/types";
 import { RenderCtx, useRenderContext } from "../site/renderContext";
 import { useEditor } from "../state/store";
-import { cardLayouts } from "../model/extras";
+import { templateSourceFor } from "../model/extras";
 
 export interface CardSource {
   collection: Collection;
@@ -60,8 +60,8 @@ export function useCardSource(): CardSource | null {
           : undefined,
       };
     }
-    if (state.componentId && cardLayouts?.templateSource) {
-      const collection = cardLayouts.templateSource(site, state.componentId);
+    if (state.componentId) {
+      const collection = templateSourceFor(site, state.componentId);
       if (collection) {
         const first = collection.items[0];
         return { collection, item: first ? { values: itemValues(collection, first), url: "#", key: first.id } : undefined };
