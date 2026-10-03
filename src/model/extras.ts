@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 import type { BlockDefinition } from "../blocks/types";
-import type { Block, Page, PageShell, Section, ShellType, Site } from "./types";
+import type { Block, Collection, Page, PageShell, Section, ShellType, Site } from "./types";
 
 export interface ShellOption {
   value: ShellType;
@@ -41,6 +41,8 @@ export interface CardLayouts {
   fixedLayout?: (page: Page) => boolean;
   /** Layouts the editor shows whole, with each section edited where it sits (the Shell gets renderSection). */
   editInPlace?: (page: Page) => boolean;
+  /** The items a template is drawn for when a card layout uses it (cards as a collection), or null. */
+  templateSource?: (site: Site, componentId: string) => Collection | null;
 }
 
 const found = import.meta.glob<{ default: CardLayouts }>("/private/cards/index.tsx", { eager: true });

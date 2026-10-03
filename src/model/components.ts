@@ -66,6 +66,7 @@ export function componentRows(def: ComponentDef, section: Section = def.section)
 
 export const SHAPES: { value: string; label: string; w: number; h: number }[] = [
   { value: "card", label: "Card (5 × 7)", w: 500, h: 700 },
+  { value: "tarot", label: "Tall card (8 × 13)", w: 520, h: 845 },
   { value: "cover", label: "Book cover (3 × 4)", w: 600, h: 800 },
   { value: "page", label: "Book page", w: 720, h: 960 },
   { value: "tile", label: "Product tile (4 × 5)", w: 480, h: 600 },
