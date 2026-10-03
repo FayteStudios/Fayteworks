@@ -766,7 +766,7 @@ const ESSENTIALS: Record<string, string[]> = {
   heading: ["text", "fontFamily", "size", "sizePx", "fontStyle", "align", "color"],
   text: ["text", "fontFamily", "size", "sizePx", "fontStyle", "align", "color"],
   button: ["label", "href", "variant"],
-  image: ["src", "alt"],
+  image: ["src", "alt", "fit"],
   card: ["image", "title", "text", "href"],
   box: ["fill"],
   divider: ["color", "thickness"],

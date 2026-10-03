@@ -389,7 +389,7 @@ const definitions: BlockDefinition[] = [
     icon: "▧",
     description: "Photo or illustration",
     defaultSize: { w: 5, h: 10 },
-    defaultProps: { src: "", alt: "", fit: "cover", radius: -1 },
+    defaultProps: { src: "", alt: "", fit: "contain", radius: -1 },
     fields: [
       { key: "src", label: "Image", kind: "image" },
       { key: "alt", label: "Alt text", kind: "text", hint: "Describe the image for screen readers." },
@@ -399,9 +399,11 @@ const definitions: BlockDefinition[] = [
         label: "Fit",
         kind: "select",
         options: [
-          { value: "cover", label: "Fill (crop)" },
-          { value: "contain", label: "Fit (no crop)" }
-        ]
+          { value: "contain", label: "Scale to fit (whole picture)" },
+          { value: "cover", label: "Fill the piece (crops the edges)" },
+          { value: "fill", label: "Stretch to the piece" }
+        ],
+        hint: "Dragging a corner keeps the picture's shape; the side handles change the piece freely."
       },
       { key: "radius", label: "Corner radius", kind: "range", min: -1, max: 60, hint: "-1 uses the theme radius." },
       {

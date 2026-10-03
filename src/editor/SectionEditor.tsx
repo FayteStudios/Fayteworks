@@ -44,7 +44,7 @@ type Edges = { left?: boolean; right?: boolean; top?: boolean; bottom?: boolean 
 
 type DragState =
   | ({ kind: "move"; clickedId: string; origs: Record<string, Rect>; dc: number; dr: number } & BlockGesture)
-  | ({ kind: "resize"; blockId: string; edges: Edges; orig: Rect; current: Rect } & BlockGesture)
+  | ({ kind: "resize"; blockId: string; edges: Edges; orig: Rect; current: Rect; aspect?: number } & BlockGesture)
   | { kind: "section"; tier: Tier; startY: number; rowStep: number; origRows: number; currentRows: number }
   | { kind: "band"; startX: number; startY: number; x: number; y: number };
 
@@ -307,7 +307,11 @@ export function SectionEditor({ section, role, index, total }: Props) {
       }
       const o = d.orig;
       const dr = d.edges.bottom ? edgeRow - (o.y + o.h) : d.edges.top ? edgeRow - o.y : 0;
-      const current = applyDelta(o, d.edges, dc, dr, roomCols);
+      let current = applyDelta(o, d.edges, dc, dr, roomCols);
+      if (d.aspect) {
+        const h = Math.max(1, Math.round((current.w * d.colStep) / d.aspect / d.rowStep));
+        current = { ...current, h, y: d.edges.top ? Math.max(0, o.y + o.h - h) : o.y };
+      }
       if (sameRect(current, d.current) && alt === d.alt) return;
       updateDrag({ ...d, current, alt, ...resolveGesture({ [d.blockId]: current }, false, alt, d.tier) });
     }
@@ -450,7 +454,10 @@ export function SectionEditor({ section, role, index, total }: Props) {
     };
     if (edges) {
       const rect = rectFor(base, base.blocks.find((x) => x.id === blockId) ?? block, tier);
-      updateDrag({ kind: "resize", blockId, edges, orig: rect, current: rect, ...common });
+      const img = block.type === "image" ? (event.currentTarget as HTMLElement).closest("[data-block-id]")?.querySelector<HTMLImageElement>("img.b-image") : null;
+      const corner = Boolean((edges.left || edges.right) && (edges.top || edges.bottom));
+      const aspect = corner && img?.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : undefined;
+      updateDrag({ kind: "resize", blockId, edges, orig: rect, current: rect, aspect, ...common });
     } else {
       const origs: Record<string, Rect> = {};
       for (const id of ids) {
