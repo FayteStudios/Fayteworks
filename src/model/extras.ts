@@ -83,6 +83,9 @@ export interface Extension {
   pieceAfter?: ComponentType<{ block: Block }>;
   /** The items a template is drawn for when one of this extension's pieces uses it, or null. */
   templateSource?: (site: Site, componentId: string) => Collection | null;
+  /** Hitbox behaviours this extension brings (e.g. falls and bounces), and their extra settings. */
+  hitboxRoles?: { value: string; label: string; hint?: string }[];
+  HitboxOptions?: ComponentType<{ block: Block; mutate: (recipe: (b: Block) => void, key?: string) => void }>;
 }
 
 export const pieceTools: PieceTool[] = [];
@@ -91,6 +94,9 @@ const extensionModules = import.meta.glob<{ default: Extension }>("/private/*/ex
 
 export const extensions: Extension[] = Object.values(extensionModules).map((m) => m.default);
 pieceTools.push(...extensions.flatMap((e) => e.pieceTools ?? []));
+
+export const hitboxRoles = extensions.flatMap((e) => e.hitboxRoles ?? []);
+export const hitboxOptions = extensions.flatMap((e) => (e.HitboxOptions ? [e.HitboxOptions] : []));
 
 export function templateSourceFor(site: Site, componentId: string): Collection | null {
   for (const source of [cardLayouts?.templateSource, ...extensions.map((e) => e.templateSource)]) {

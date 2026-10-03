@@ -255,7 +255,7 @@ function useShortcuts() {
 }
 
 function DeviceBar() {
-  const { state, setDevice, setCustomSize, setEditScope, setFreeform } = useEditor();
+  const { state, setDevice, setCustomSize, setEditScope, setFreeform, setHitboxView } = useEditor();
   const device = getDevice(state.deviceId, state.customSize);
   const isCustom = device.id === CUSTOM_DEVICE_ID;
   return (
@@ -343,6 +343,14 @@ function DeviceBar() {
         onClick={() => setFreeform(!state.freeform)}
       >
         {state.freeform ? "Overlap" : "Push aside"}
+      </button>
+      <button
+        className={cls("btn btn--ghost push-toggle", state.hitboxView && "is-active")}
+        aria-pressed={state.hitboxView}
+        title="Show every piece's hitbox: the part that touches things. Select a piece to drag its edges, seat and outline."
+        onClick={() => setHitboxView(!state.hitboxView)}
+      >
+        Hitboxes
       </button>
     </div>
   );

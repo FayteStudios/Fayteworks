@@ -21,6 +21,8 @@ import { cloneBlock, findPage, findSection, componentSection } from "../model/op
 import type { ComponentDef, PageSeo, Orientation } from "../model/types";
 import { useEffect, useState, type ReactNode } from "react";
 import { type Block, type PropValue, type Section, type SectionSettings } from "../model/types";
+import { HitboxPanel } from "./HitboxPanel";
+import { hitboxRoles } from "../model/extras";
 import { ensureOwnLayout, hasCustomLayout, isHiddenAt, isStacked, mirrorEdit, rectFor, setHiddenAndReflow, setRect, TIER_LABEL } from "../model/responsive";
 import { editorTier, selectedBlockIds, useEditor } from "../state/store";
 import { getBlockDefinition as defOf } from "../blocks/registry";
@@ -738,6 +740,10 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
             Send backward
           </button>
         </div>
+      </Fold>
+
+      <Fold id="hitbox" title={block.hitbox?.role ? `Hitbox · ${hitboxRoles.find((r) => r.value === block.hitbox?.role)?.label ?? ""}` : "Hitbox"}>
+        <HitboxPanel block={block} section={section} mutateBlock={mutateBlock} />
       </Fold>
 
       <section className="inspector-group">

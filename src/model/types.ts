@@ -30,6 +30,8 @@ export interface Block {
   hang?: { x?: number; y?: number };
   /** Reaches into the column gaps on both sides, so it touches the pieces beside it. */
   flush?: boolean;
+  /** The part of the piece that touches things (see model/hitbox). */
+  hitbox?: import("./hitbox").Hitbox;
   spot?: string;
   turn?: BlockTurn;
   ext?: Record<string, unknown>;

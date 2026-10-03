@@ -32,6 +32,7 @@ import {
 import { editorOrientation, editorTier, selectedBlockIds, useEditor } from "../state/store";
 import { cls } from "../util/cls";
 import { InlineMaker } from "./ComponentMaker";
+import { HitboxOverlay } from "./HitboxOverlay";
 import { describeLink, LinkDialog } from "./LinkPicker";
 import { findComponent } from "../model/components";
 import { promptSaveComponent } from "./ComponentsGroup";
@@ -667,6 +668,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
               {(drag?.kind === "move" || drag?.kind === "resize") && (drag.kind === "move" ? drag.clickedId : drag.blockId) === block.id && (drag.pushed || drag.alt) && (
                 <span className="editor-block-size editor-block-drag-tip">{drag.alt ? "Placing on top (release Alt to make room)" : "Making room · hold Alt to place on top"}</span>
               )}
+              {state.hitboxView && <HitboxOverlay block={block} sectionId={sectionId} selected={onlySelected} />}
               {hiddenNote && <span className="editor-block-hidden-tag">{hiddenNote}</span>}
               {onlySelected && !inert && !editingText && <LinkTag block={block} sectionId={sectionId} />}
               {onlySelected && !inert && !editingText && !layoutLocked && <TurnHandle block={block} sectionId={sectionId} />}

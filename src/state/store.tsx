@@ -48,6 +48,10 @@ export interface EditorState {
   componentAnchor: { sectionId: string; blockId: string } | null;
   /** The item shown while designing a template (its key), or null for the template's own sample. */
   componentItem: string | null;
+  /** Hitboxes drawn over every piece. */
+  hitboxView: boolean;
+  /** The piece whose hitbox outline is being drawn by clicking, or null. */
+  hitboxDraw: string | null;
   zoom: number | "fit";
   lastCommitKey: string | null;
   lastCommitAt: number;
@@ -68,6 +72,7 @@ type Action =
   | { type: "setFreeform"; freeform: boolean }
   | { type: "setEditScope"; scope: EditScope }
   | { type: "setComponentItem"; item: string | null }
+  | { type: "setHitboxView"; on: boolean; draw?: string | null }
   | { type: "focusLayer"; focus: LayerFocus }
   | { type: "focusBlock"; focus: EditorState["focusedBlock"] }
   | { type: "editComponent"; componentId: string | null; variantId?: string | null; anchor?: { sectionId: string; blockId: string } | null }
@@ -243,6 +248,8 @@ function reducer(state: EditorState, action: Action): EditorState {
       return { ...state, mode: action.mode, selection: { kind: "none" }, focusedBlock: null };
     case "setComponentItem":
       return { ...state, componentItem: action.item };
+    case "setHitboxView":
+      return { ...state, hitboxView: action.on, hitboxDraw: action.on ? (action.draw !== undefined ? action.draw : state.hitboxDraw) : null };
     case "setEditScope":
       return { ...state, editScope: action.scope };
     case "setFreeform":
@@ -294,6 +301,8 @@ function createInitialState(initialSite?: Site): EditorState {
     componentVariantId: null,
     componentAnchor: null,
     componentItem: null,
+    hitboxView: false,
+    hitboxDraw: null,
     zoom: "fit",
     lastCommitKey: null,
     lastCommitAt: 0
@@ -317,6 +326,7 @@ interface EditorContextValue {
   setFreeform: (freeform: boolean) => void;
   setEditScope: (scope: EditScope) => void;
   setComponentItem: (item: string | null) => void;
+  setHitboxView: (on: boolean, draw?: string | null) => void;
   focusLayer: (focus: LayerFocus) => void;
   focusBlock: (focus: EditorState["focusedBlock"]) => void;
   editComponent: (componentId: string | null, variantId?: string | null, anchor?: { sectionId: string; blockId: string } | null) => void;
@@ -373,6 +383,7 @@ export function EditorProvider({ children, initialSite, persist }: EditorProvide
   const setFreeform = useCallback((freeform: boolean) => dispatch({ type: "setFreeform", freeform }), []);
   const setEditScope = useCallback((scope: EditScope) => dispatch({ type: "setEditScope", scope }), []);
   const setComponentItem = useCallback((item: string | null) => dispatch({ type: "setComponentItem", item }), []);
+  const setHitboxView = useCallback((on: boolean, draw?: string | null) => dispatch({ type: "setHitboxView", on, draw }), []);
   const focusLayer = useCallback((focus: LayerFocus) => dispatch({ type: "focusLayer", focus }), []);
   const focusBlock = useCallback((focus: EditorState["focusedBlock"]) => dispatch({ type: "focusBlock", focus }), []);
   const setZoom = useCallback((zoom: number | "fit") => dispatch({ type: "setZoom", zoom }), []);
@@ -386,8 +397,8 @@ export function EditorProvider({ children, initialSite, persist }: EditorProvide
   const page = state.site.pages.find((p) => p.id === state.pageId) ?? state.site.pages[0];
 
   const value = useMemo(
-    () => ({ state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, setComponentItem, focusLayer, focusBlock, editComponent, setZoom }),
-    [state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, setComponentItem, focusLayer, focusBlock, editComponent, setZoom]
+    () => ({ state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, setComponentItem, setHitboxView, focusLayer, focusBlock, editComponent, setZoom }),
+    [state, page, commit, derive, select, undo, redo, load, setPage, setDevice, setCanvasWidth, setCustomSize, setMode, setFreeform, setEditScope, setComponentItem, setHitboxView, focusLayer, focusBlock, editComponent, setZoom]
   );
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;

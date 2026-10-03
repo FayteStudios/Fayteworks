@@ -1,14 +1,22 @@
 import { createLayer, pinLayers } from "./layers";
-import { SCHEMA_VERSION, type Page, type Section, type Site, type ComponentDef } from "./types";
+import { SCHEMA_VERSION, type Block, type Page, type Section, type Site, type ComponentDef } from "./types";
 
 type Loose<T> = Partial<T>;
+
+/** Physics roles used to live in the physics settings; they are now the hitbox's behaviour. */
+function liftPhysicsRole(block: Block): Block {
+  const physics = block.ext?.physics as { role?: string } | undefined;
+  if (!physics?.role) return block;
+  const { role, ...rest } = physics;
+  return { ...block, hitbox: { ...block.hitbox, role: block.hitbox?.role || role }, ext: { ...block.ext, physics: rest } };
+}
 
 export function migrateSection(section: Loose<Section>): Section {
   const migrated: Section = {
     ...section,
     id: String(section.id),
     name: String(section.name ?? "Section"),
-    blocks: Array.isArray(section.blocks) ? section.blocks : [],
+    blocks: (Array.isArray(section.blocks) ? section.blocks : []).map(liftPhysicsRole),
     layers:
       Array.isArray(section.layers) && section.layers.length > 0
         ? (section.layers as Section["layers"]).map((l) => (/^Layer \d+$/.test(l.name) ? { ...l, name: l.name.replace("Layer", "Group") } : l))
