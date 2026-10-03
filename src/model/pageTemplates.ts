@@ -284,6 +284,71 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
       index.seo.description = `${site.name}: the podcast. Every episode, with show notes.`;
       return { pages: [index, episode], collections: [collection], components: [card], open: index.id };
     }
+  },
+  {
+    id: "shop",
+    label: "Shop",
+    description: "Your products as tiles with a Buy button, a page for each. Buying goes through your own checkout links (Stripe, Gumroad, Lemon Squeezy, PayPal…).",
+    build: (site) => {
+      const collection: Collection = {
+        id: createId("col"),
+        name: "Products",
+        fields: [
+          { key: "name", label: "Name", type: "text" },
+          { key: "price", label: "Price (as shown, e.g. $24)", type: "text" },
+          { key: "image", label: "Picture", type: "image" },
+          { key: "summary", label: "One line about it", type: "text" },
+          { key: "details", label: "Details", type: "longtext" },
+          { key: "buy_link", label: "Buy link (your checkout)", type: "link" }
+        ],
+        items: [
+          { name: "Art print", price: "$24", image: coverSvg("#e07a5f", "#f2cc8f"), summary: "A4, signed, on heavy matte paper.", details: "Printed to order and sent flat in a stiff envelope.", buy_link: "" },
+          { name: "Sticker pack", price: "$8", image: coverSvg("#3d5a80", "#98c1d9"), summary: "Six weatherproof stickers.", details: "Vinyl, die-cut, about 7 cm each.", buy_link: "" },
+          { name: "Tote bag", price: "$18", image: coverSvg("#2a9d8f", "#e9c46a"), summary: "Heavy cotton, printed both sides.", details: "38 × 42 cm, long handles.", buy_link: "" }
+        ].map((v) => ({ id: createId("itm"), slug: slugify(v.name), values: v })),
+        source: { kind: "manual" }
+      };
+      const tile = createComponent(
+        "Product tile",
+        [
+          b("image", 0, 0, 12, 14, { src: "{{item.image}}", alt: "{{item.name}}", fit: "cover" }),
+          b("heading", 0, 15, 12, 2, { text: "{{item.name}}", level: "3", size: "s" }),
+          b("text", 0, 17, 12, 2, { text: "{{item.price}}", size: "m", color: "var(--accent)" }),
+          b("buy", 0, 21, 6, 2, { provider: "other", href: "{{item.buy_link}}", label: "Buy", price: "", size: "s" }),
+          b("button", 6, 21, 6, 2, { label: "Details", href: "{{item.url}}", variant: "ghost", size: "s", align: "right" })
+        ],
+        4,
+        { padding: 16, radius: 18 }
+      );
+      tile.shape = { preset: "tile", w: 480, h: 600 };
+      tile.section.settings.minRows = 25;
+      tile.icon = "🛍";
+      tile.description = "A product: picture, name, price, Buy and Details. Shaped like a tile; customise any one product from its Items strip.";
+      const index = createPage("Shop", uniqueSlug(site, "shop"), [
+        createSection("Intro", [b("heading", 0, 0, 8, 4, { text: "Shop", level: "1", size: "xl" }), b("text", 0, 5, 7, 3, { text: "Made by hand, sent with care.", size: "l", color: "var(--muted)" })], { minRows: 8, paddingY: 72 }),
+        createSection("Products", [b("collection", 0, 0, 12, 18, { collectionId: collection.id, componentId: tile.id, columns: 3, gap: 24, empty: "Nothing for sale right now." })], { minRows: 18 })
+      ]);
+      const item = createPage("{{item.name}}", index.slug, [
+        createSection(
+          "Product",
+          [
+            b("image", 0, 0, 6, 18, { src: "{{item.image}}", alt: "{{item.name}}", fit: "cover" }),
+            b("heading", 7, 0, 5, 4, { text: "{{item.name}}", level: "1", size: "xl" }),
+            b("text", 7, 4, 5, 2, { text: "{{item.price}}", size: "l", color: "var(--accent)" }),
+            b("text", 7, 7, 5, 2, { text: "{{item.summary}}", size: "l" }),
+            b("text", 7, 10, 5, 5, { text: "{{item.details}}", size: "m", color: "var(--muted)" }),
+            b("buy", 7, 16, 4, 2, { provider: "other", href: "{{item.buy_link}}", label: "Buy now", price: "" })
+          ],
+          { minRows: 19, paddingY: 72 }
+        ),
+        createSection("More", [b("button", 0, 0, 4, 2, { label: "← All products", href: `${PAGE_LINK_PREFIX}${index.id}`, variant: "ghost" })], { minRows: 3, paddingY: 24 })
+      ]);
+      item.collectionId = collection.id;
+      item.hideInNav = true;
+      item.seo = { description: "{{item.summary}}", image: "{{item.image}}" };
+      index.seo.description = `Shop ${site.name}.`;
+      return { pages: [index, item], collections: [collection], components: [tile], open: index.id };
+    }
   }
 ];
 
@@ -308,7 +373,8 @@ export const READY_MADE_SECTIONS: ReadyMadeSection[] = [
       return { pages: [blog.index, blog.post], collections: [blog.collection], components: [blog.card], open: blog.index.id };
     }
   },
-  { id: "podcast", label: "Podcast episodes", description: "Your episodes with players and show notes.", build: PAGE_TEMPLATES[4].build }
+  { id: "podcast", label: "Podcast episodes", description: "Your episodes with players and show notes.", build: PAGE_TEMPLATES[4].build },
+  { id: "shop", label: "Shop", description: "Your products as tiles with a Buy button, each with its own page.", build: PAGE_TEMPLATES[5].build }
 ];
 
 /**
