@@ -27,7 +27,7 @@ export interface PageOutline {
 
 export interface CardLayouts {
   options: ShellOption[];
-  Shell: ComponentType<{ page: Page; sections: Section[]; pages: Page[] }>;
+  Shell: ComponentType<{ page: Page; sections: Section[]; pages: Page[]; renderSection?: (section: Section) => ReactNode }>;
   split<T>(shell: PageShell, sections: T[]): { intro: T | null; cards: T[] };
   cardTitle(section: Section, index: number, numbers: boolean): string;
   CardAside: ComponentType<{ page: Page; section: Section; index: number; children: ReactNode }>;
@@ -39,6 +39,8 @@ export interface CardLayouts {
   runtimes?: ((root: Document | HTMLElement) => () => void)[];
   outline?: (pages: Page[]) => PageOutline | null;
   fixedLayout?: (page: Page) => boolean;
+  /** Layouts the editor shows whole, with each section edited where it sits (the Shell gets renderSection). */
+  editInPlace?: (page: Page) => boolean;
 }
 
 const found = import.meta.glob<{ default: CardLayouts }>("/private/cards/index.tsx", { eager: true });

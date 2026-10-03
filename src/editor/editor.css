@@ -1880,6 +1880,26 @@ kbd {
   box-shadow: inset 3px 0 0 var(--ui-accent);
 }
 
+.editor-strip {
+  scroll-snap-type: none;
+  scrollbar-width: auto;
+}
+
+.editor-strip::-webkit-scrollbar {
+  display: block;
+  height: 12px;
+}
+
+.editor-strip .shell-slide {
+  scroll-snap-align: none;
+}
+
+.editor-strip-add.shell-slide {
+  flex: 0 0 220px;
+  justify-content: center;
+  align-items: center;
+}
+
 .editor-shell-note {
   padding: 10px 16px;
   background: #2a2140;

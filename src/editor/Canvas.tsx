@@ -274,6 +274,25 @@ export function Canvas() {
   const shownSections = focusId === "all" ? sections : sections.filter((s) => s.role !== "page" || s.section.id === focusId);
   const lastShownPage = [...shownSections].reverse().find((s) => s.role === "page")?.section;
   const numbers = shell.numbers !== false;
+  const strip = !cardShell && (shell.type === "sideways" || shell.type === "horizontal");
+  const inPlace = Boolean(cardLayouts && cardShell && cardLayouts.editInPlace?.(page));
+  const sectionEditor = ({ section, role }: (typeof sections)[number]) => (
+    <SectionEditor key={section.id} section={section} role={role} index={role === "page" ? page.sections.indexOf(section) : 0} total={pageSections.length} />
+  );
+  const stripRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el || !editing) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const slide = (e.target as HTMLElement).closest<HTMLElement>(".shell-slide");
+      if (slide && !e.shiftKey && slide.scrollHeight > slide.clientHeight + 1) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 40 : 1);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [strip, editing, page.id]);
 
   const siteRoot = (
     <div
@@ -282,7 +301,7 @@ export function Canvas() {
       data-orientation={deviceSize ? (deviceSize.width > deviceSize.height ? "landscape" : "portrait") : undefined}
       style={{
         ...themeVars(pageTheme(site, page)),
-        ...(editing ? {} : { "--shell-vh": deviceSize ? `${deviceSize.height}px` : "calc(100vh - 88px)" })
+        ...(editing && !strip ? {} : { "--shell-vh": deviceSize ? `${deviceSize.height}px` : "calc(100vh - 88px)" })
       } as CSSProperties}
       onClick={editing ? undefined : handlePreviewClick}
       onSubmitCapture={(event) => {
@@ -297,10 +316,14 @@ export function Canvas() {
           {shell.type !== "scroll" && (
             <div className="editor-shell-note" onPointerDown={(e) => e.stopPropagation()}>
               <strong>{[...SHELL_OPTIONS, ...(cardLayouts?.options ?? [])].find((o) => o.value === shell.type)?.label}</strong>:{" "}
-              {cardShell
+              {inPlace
+                ? "you edit each section right where it sits, at the size visitors see. Press Preview to try it."
+                : cardShell
                 ? "each section is a card with its own page. Pick the card to edit; press Preview to try it."
-                : "this page presents its sections differently. You edit them here as usual; press Preview to try the layout."}
-              {cardShell && page.sections.length > 0 && (
+                : strip
+                  ? "the sections sit side by side here, just as visitors see them. Scroll sideways (Shift + wheel inside a tall section) to move along."
+                  : "this page presents its sections differently. You edit them here as usual; press Preview to try the layout."}
+              {cardShell && !inPlace && page.sections.length > 0 && (
                 <div className="editor-card-tabs" role="tablist" aria-label="Cards on this page">
                   {intro && (
                     <button role="tab" aria-selected={focusId === intro.id} className={focusId === intro.id ? "is-active" : undefined} onClick={() => setFocus(intro.id)}>
@@ -330,7 +353,45 @@ export function Canvas() {
             </div>
           )}
           {!site.header && !design && <SharedSectionButton kind="header" />}
-          {shownSections.map(({ section, role }) => {
+          {inPlace && cardLayouts && (
+            <>
+              {sections.filter((s) => s.role === "header").map(sectionEditor)}
+              <cardLayouts.Shell page={page} sections={page.sections} pages={site.pages} renderSection={(section) => sectionEditor({ section, role: "page" })} />
+              <AddSectionButton index={page.sections.length} />
+              {sections.filter((s) => s.role === "footer").map(sectionEditor)}
+            </>
+          )}
+          {strip && (
+            <>
+              {shownSections
+                .filter((s) => s.role === "header")
+                .map(({ section, role }) => (
+                  <SectionEditor key={section.id} section={section} role={role} index={0} total={pageSections.length} />
+                ))}
+              <main
+                ref={stripRef}
+                className={cls("site-main site-shell editor-strip", `site-shell--${shell.type}`, shell.type === "sideways" && "site-shell--horizontal")}
+                data-direction="x"
+              >
+                {shownSections
+                  .filter((s) => s.role === "page")
+                  .map(({ section, role }) => (
+                    <div key={section.id} className="shell-slide">
+                      <SectionEditor section={section} role={role} index={page.sections.indexOf(section)} total={pageSections.length} />
+                    </div>
+                  ))}
+                <div className="shell-slide editor-strip-add">
+                  <AddSectionButton index={page.sections.length} />
+                </div>
+              </main>
+              {shownSections
+                .filter((s) => s.role === "footer")
+                .map(({ section, role }) => (
+                  <SectionEditor key={section.id} section={section} role={role} index={0} total={pageSections.length} />
+                ))}
+            </>
+          )}
+          {!strip && !inPlace && shownSections.map(({ section, role }) => {
             const cardIndex = cards.indexOf(section);
             const besideCard = cardLayouts && cardShell && focusId === section.id && cardIndex >= 0 && !section.card?.link;
             const editor = (
@@ -356,7 +417,7 @@ export function Canvas() {
               </Fragment>
             );
           })}
-          {pageSections.length === 0 && <AddSectionButton index={0} />}
+          {!strip && !inPlace && pageSections.length === 0 && <AddSectionButton index={0} />}
           {!site.footer && !design && <SharedSectionButton kind="footer" />}
         </>
       ) : (
