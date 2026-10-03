@@ -159,6 +159,7 @@
   margin-bottom: calc(var(--oh-bottom, 0) * -1 * var(--row-h, 24px));
   left: calc(var(--hang-x, 0) * 1%);
   top: calc(var(--hang-y, 0) * 1%);
+  margin-inline: calc(var(--pull, 0) * var(--col-gap, 16px) / -2);
 }
 
 .site-section--hang {

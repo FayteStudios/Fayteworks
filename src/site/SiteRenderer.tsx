@@ -35,6 +35,7 @@ export function blockStyle(section: Section, block: Block, z: number): CSSProper
   }
   if (block.overhang?.top) vars["--oh-top"] = block.overhang.top;
   if (block.overhang?.bottom) vars["--oh-bottom"] = block.overhang.bottom;
+  if (block.flush) vars["--pull"] = 1;
   if (block.hang?.x) vars["--hang-x"] = block.hang.x;
   if (block.hang?.y) vars["--hang-y"] = block.hang.y;
   return { ...vars, zIndex: z + 1 } as CSSProperties;

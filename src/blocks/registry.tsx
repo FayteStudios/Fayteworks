@@ -403,7 +403,28 @@ const definitions: BlockDefinition[] = [
           { value: "contain", label: "Fit (no crop)" }
         ]
       },
-      { key: "radius", label: "Corner radius", kind: "range", min: -1, max: 60, hint: "-1 uses the theme radius." }
+      { key: "radius", label: "Corner radius", kind: "range", min: -1, max: 60, hint: "-1 uses the theme radius." },
+      {
+        key: "repeat",
+        label: "Repeat the picture",
+        kind: "select",
+        options: [
+          { value: "", label: "No, show it once" },
+          { value: "x", label: "Sideways" },
+          { value: "y", label: "Up and down" },
+          { value: "both", label: "Both ways (tiles)" }
+        ],
+        hint: "For seamless patterns and borders."
+      },
+      {
+        key: "times",
+        label: "How many times",
+        kind: "number",
+        min: 0,
+        max: 100,
+        hint: "0 repeats it as often as fits. A number fits exactly that many across (or down) the piece. Copies always keep the picture's shape, so make the piece the right height (or width) to fill it.",
+        showWhen: { key: "repeat", is: ["x", "y", "both"] }
+      }
     ],
     mobileHeight: "keep",
     render: (p, ctx) => {
@@ -417,6 +438,21 @@ const definitions: BlockDefinition[] = [
           <div className="b-image b-image--empty" style={{ borderRadius }}>
             Add an image
           </div>
+        );
+      }
+      const repeat = str(p.repeat);
+      if (repeat === "x" || repeat === "y" || repeat === "both") {
+        const n = Math.max(0, Math.min(100, Math.round(num(p.times, 0))));
+        const size =
+          repeat === "x" ? (n ? `calc(100% / ${n}) auto` : "auto 100%") : repeat === "y" ? (n ? `auto calc(100% / ${n})` : "100% auto") : n ? `calc(100% / ${n}) auto` : "auto";
+        return (
+          <div
+            className="b-image b-image--tiled"
+            role={p.decorative ? undefined : "img"}
+            aria-label={p.decorative ? undefined : str(p.alt) || undefined}
+            aria-hidden={p.decorative ? true : undefined}
+            style={{ backgroundImage: `url("${src}")`, backgroundRepeat: repeat === "x" ? "repeat-x" : repeat === "y" ? "repeat-y" : "repeat", backgroundSize: size, backgroundPosition: n && repeat === "x" ? "0 50%" : n && repeat === "y" ? "50% 0" : "0 0", borderRadius }}
+          />
         );
       }
       return (

@@ -675,6 +675,20 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
             ))}
           </div>
         )}
+        <label className="field field--toggle">
+          <span className="field-label">Touch its neighbours (no gap)</span>
+          <input
+            type="checkbox"
+            checked={Boolean(block.flush)}
+            onChange={(e) =>
+              mutateBlock((b) => {
+                if (e.target.checked) b.flush = true;
+                else delete b.flush;
+              }, `${blockId}.flush`)
+            }
+          />
+          <span className="field-hint">Pieces normally keep a small gap between columns. This lets the piece reach into the gap on both sides, so two pieces side by side meet exactly (turn it on for both).</span>
+        </label>
         <HangFields block={block} mutateBlock={mutateBlock} />
         <TurnFields block={block} mutateBlock={mutateBlock} />
         <label className="field">
