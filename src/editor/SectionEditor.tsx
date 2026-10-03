@@ -7,7 +7,7 @@ import { getBlockDefinition } from "../blocks/registry";
 import { createBlock, createSection } from "../model/factory";
 import { cloneSection, findBlock, findPage, findSection, maxBottom, moveItem, removeSection, sectionRows, type SectionRole } from "../model/ops";
 import type { Block, Section } from "../model/types";
-import { gridOf, toSectionSize } from "../model/grid";
+import { gridOf, screensNeeded, screensOf, toSectionSize } from "../model/grid";
 import { settleBlocks } from "../model/collisions";
 import { BlockContent, SectionShell, blockStyle, inFlowOrder, mobileHeightOf, sectionRowsByTier, turnMarkup } from "../site/SiteRenderer";
 import { createLayer, isBlockVisible, layerOf, targetLayerId } from "../model/layers";
@@ -51,6 +51,7 @@ type DragState =
 interface BlockGesture {
   tier: Tier;
   startX: number;
+  scroll0: number;
   startY: number;
   colStep: number;
   rowStep: number;
@@ -184,9 +185,12 @@ export function SectionEditor({ section, role, index, total }: Props) {
     });
     return measured;
   };
+  const sideways = role === "page" && shellOf(page).type === "sideways";
+  const roomCols = sideways ? grid.cols + grid.cols / screensOf(section) : grid.cols;
   const ownCopy = () => {
     const copy = structuredClone(section);
     ensureOwnLayout(copy, tier, state.editScope, measuredRef.current);
+    if (sideways) copy.screens = screensOf(section) + 1;
     return copy;
   };
   const { selection } = state;
@@ -258,6 +262,22 @@ export function SectionEditor({ section, role, index, total }: Props) {
       }
       lastPointer.current = { x: event.clientX, y: event.clientY };
       step(d, event.clientX, event.clientY, event.altKey);
+      if (sideways && !edgeRaf) edgeRaf = requestAnimationFrame(edgeScroll);
+    }
+    let edgeRaf = 0;
+    function edgeScroll() {
+      edgeRaf = 0;
+      const d = dragRef.current;
+      const strip = sectionElRef.current?.closest<HTMLElement>(".editor-strip");
+      if (!d || (d.kind !== "move" && d.kind !== "resize") || !strip) return;
+      const box = strip.getBoundingClientRect();
+      const { x, y } = lastPointer.current;
+      const speed = x > box.right - 48 ? 16 : x < box.left + 48 ? -16 : 0;
+      if (!speed) return;
+      const before = strip.scrollLeft;
+      strip.scrollLeft += speed;
+      if (strip.scrollLeft !== before) step(d, x, y, d.alt);
+      edgeRaf = requestAnimationFrame(edgeScroll);
     }
     function onKey(event: KeyboardEvent) {
       const d = dragRef.current;
@@ -266,7 +286,9 @@ export function SectionEditor({ section, role, index, total }: Props) {
       step(d, lastPointer.current.x, lastPointer.current.y, event.type === "keydown");
     }
     function step(d: DragState & { kind: "move" | "resize" }, clientX: number, clientY: number, alt: boolean) {
-      const dc = Math.round((clientX - d.startX) / d.colStep);
+      const strip = sideways ? sectionElRef.current?.closest<HTMLElement>(".editor-strip") : null;
+      const scrolled = strip ? (strip.scrollLeft - d.scroll0) * canvasScale() : 0;
+      const dc = Math.round((clientX - d.startX + scrolled) / d.colStep);
       const edges = measureRowEdges();
       const edgePx = clientY - d.grabY - (gridRef.current?.getBoundingClientRect().top ?? 0);
       const edgeRow = nearestEdge(edges, edgePx, d.rowStep);
@@ -277,7 +299,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
         const minX = Math.min(...rects.map((r) => r.x));
         const maxRight = Math.max(...rects.map((r) => r.x + r.w));
         const minY = Math.min(...rects.map((r) => r.y));
-        const next = { dc: clamp(dc, -minX, grid.cols - maxRight), dr: Math.max(dr, -minY) };
+        const next = { dc: clamp(dc, -minX, roomCols - maxRight), dr: Math.max(dr, -minY) };
         if (next.dc === d.dc && next.dr === d.dr && alt === d.alt) return;
         const targets = Object.fromEntries(Object.entries(d.origs).map(([id, r]) => [id, { ...r, x: r.x + next.dc, y: r.y + next.dr }]));
         updateDrag({ ...d, ...next, alt, ...resolveGesture(targets, true, alt, d.tier) });
@@ -285,7 +307,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
       }
       const o = d.orig;
       const dr = d.edges.bottom ? edgeRow - (o.y + o.h) : d.edges.top ? edgeRow - o.y : 0;
-      const current = applyDelta(o, d.edges, dc, dr, grid.cols);
+      const current = applyDelta(o, d.edges, dc, dr, roomCols);
       if (sameRect(current, d.current) && alt === d.alt) return;
       updateDrag({ ...d, current, alt, ...resolveGesture({ [d.blockId]: current }, false, alt, d.tier) });
     }
@@ -309,6 +331,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
             setRect(s, block, d.tier, r);
             if (scope === "all" && origs[id]) mirrorEdit(s, block, d.tier, origs[id], r);
           }
+          if (sideways && screensNeeded(s) > screensOf(s)) s.screens = screensNeeded(s);
         });
       }
       if (d?.kind === "band" && Math.hypot(d.x - d.startX, d.y - d.startY) > BAND_THRESHOLD) {
@@ -336,6 +359,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKey);
     return () => {
+      cancelAnimationFrame(edgeRaf);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
@@ -351,7 +375,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
 
   const draggedIds = drag?.kind === "move" ? Object.keys(drag.origs) : drag?.kind === "resize" ? [drag.blockId] : [];
 
-  const shown = drag && (drag.kind === "move" || drag.kind === "resize") && ownScreen && !hasCustomLayout(section, tier) ? ownCopy() : section;
+  const shown = drag && (drag.kind === "move" || drag.kind === "resize") && (sideways || (ownScreen && !hasCustomLayout(section, tier))) ? ownCopy() : section;
   const blocks = shown.blocks.map((b) => {
     const r = previewRect(b.id);
     return r && (drag?.kind === "move" || drag?.kind === "resize") ? withRect(shown, b, drag.tier, r) : b;
@@ -415,6 +439,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
     const common = {
       tier,
       startX: event.clientX,
+      scroll0: sectionElRef.current?.closest<HTMLElement>(".editor-strip")?.scrollLeft ?? 0,
       startY: event.clientY,
       colStep: columnStep(),
       rowStep: rowStep(),

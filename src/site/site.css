@@ -1323,8 +1323,23 @@ a.b-gallery-item:hover img {
   scroll-snap-type: none;
 }
 
-.site-shell--sideways .shell-slide {
+.site-shell--sideways {
+  container-type: inline-size;
+}
+
+.site-shell--sideways.site-shell--horizontal .shell-slide {
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 100cqw;
   scroll-snap-align: none;
+}
+
+.site-shell--sideways .site-section {
+  width: calc(var(--screens, 1) * 100cqw);
+}
+
+.site-shell--sideways .site-section:not(.site-section--bleed) .site-section-inner {
+  max-width: calc(var(--max-width, 1200px) * var(--screens, 1));
 }
 
 .site-shell--sideways .site-section--bleed .site-section-inner {

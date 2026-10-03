@@ -31,7 +31,7 @@ import { ChangeDesign, ComponentInspector, MakeComponentButton, useExposure } fr
 import { ItemFieldsCtx, itemFieldsOf, useCardSource } from "./cardSource";
 import { componentUses, findComponent } from "../model/components";
 import { settleBlocks } from "../model/collisions";
-import { densityOf, gridOf, setGridDensity } from "../model/grid";
+import { densityOf, gridOf, MAX_SCREENS, screensNeeded, screensOf, setGridDensity } from "../model/grid";
 import { GridPrecisionField } from "./GridPrecisionField";
 import { FieldList } from "./Fields";
 import { openFramesFor, openTimelineFor } from "./focusTools";
@@ -839,6 +839,28 @@ function SectionInspector({ section }: { section: Section }) {
           />
         </div>
         <GridPrecisionField value={densityOf(section)} onChange={(d) => mutateSection((s) => setGridDensity(s, d), `${section.id}.grid`)} />
+        {!shared && shellOf(page).type === "sideways" && (
+          <label className="field">
+            <span className="field-label">Length (screens)</span>
+            <input
+              type="number"
+              min={screensNeeded(section)}
+              max={MAX_SCREENS}
+              value={screensOf(section)}
+              onChange={(e) =>
+                mutateSection((s) => {
+                  const before = gridOf(s).cols;
+                  const n = Math.max(screensNeeded(s), Math.min(MAX_SCREENS, Math.round(Number(e.target.value) || 1)));
+                  if (n > 1) s.screens = n;
+                  else delete s.screens;
+                  const after = gridOf(s).cols;
+                  for (const b of s.blocks) if (b.x === 0 && b.w === before) b.w = after;
+                }, `${section.id}.screens`)
+              }
+            />
+            <span className="field-hint">How far this section runs sideways. Pieces that span the whole length (like a wave line) stretch with it. Dragging a piece past the right edge makes it longer too.</span>
+          </label>
+        )}
         <FieldList
           fields={SECTION_FIELDS}
           values={section.settings as unknown as Record<string, PropValue>}

@@ -20,17 +20,30 @@ export interface GridMetrics {
   gap: number;
 }
 
-export function gridOf(section: Pick<Section, "grid">, component = false): GridMetrics {
+export const MAX_SCREENS = 30;
+
+export function screensOf(section: Pick<Section, "screens">): number {
+  return Math.max(1, Math.min(MAX_SCREENS, Math.round(section.screens ?? 1)));
+}
+
+/** Screens a section needs so every piece fits inside it. */
+export function screensNeeded(section: Section): number {
+  const perScreen = GRID_COLUMNS * densityOf(section);
+  const right = Math.max(0, ...section.blocks.map((b) => b.x + b.w));
+  return Math.max(1, Math.ceil(right / perScreen));
+}
+
+export function gridOf(section: Pick<Section, "grid" | "screens">, component = false): GridMetrics {
   const density = densityOf(section);
   return {
     density,
-    cols: GRID_COLUMNS * density,
+    cols: GRID_COLUMNS * density * (component ? 1 : screensOf(section)),
     rowHeight: ROW_HEIGHT / density,
     gap: (component ? COLUMN_GAP / 2 : COLUMN_GAP) / density
   };
 }
 
-export function gridVars(section: Pick<Section, "grid">, component = false): Record<string, string | number> {
+export function gridVars(section: Pick<Section, "grid" | "screens">, component = false): Record<string, string | number> {
   const g = gridOf(section, component);
   return { "--cols": g.cols, "--row-h": `${g.rowHeight}px`, "--col-gap": `${g.gap}px` };
 }

@@ -144,6 +144,7 @@ export function SectionShell({ section, role, rows, children, gridRef, gridProps
       style={
         {
           "--pad-y": `${s.paddingY}px`,
+          ...(section.screens && section.screens > 1 ? { "--screens": section.screens } : {}),
           ...(sheet ? { "--sheet-h": `${sheet.height}px`, "--sheet-bleed": `${sheet.bleed}px`, "--sheet-safe": `${sheet.safe}px` } : {}),
           background:
             [

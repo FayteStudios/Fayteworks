@@ -114,6 +114,8 @@ export interface Section {
   layers: Layer[];
   layouts?: { tablet?: boolean; phone?: boolean; tabletMinRows?: number; phoneMinRows?: number };
   grid?: 2 | 3;
+  /** How many screens wide the section is on a Sideways page. */
+  screens?: number;
   card?: SectionCard;
   blocks: Block[];
 }
