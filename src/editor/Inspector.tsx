@@ -675,6 +675,7 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
             ))}
           </div>
         )}
+        <HangFields block={block} mutateBlock={mutateBlock} />
         <TurnFields block={block} mutateBlock={mutateBlock} />
         <label className="field">
           <span className="field-label">Show in</span>
@@ -1246,6 +1247,61 @@ const TURN_FIELDS: { key: "z" | "x" | "y"; label: string; title: string }[] = [
   { key: "x", label: "Tip back °", title: "Tip the top away from you (minus tips it towards you)" },
   { key: "y", label: "Turn sideways °", title: "Swing it round like a door (minus swings the other way)" }
 ];
+
+const HANG_SPOTS: { x: number; y: number; title: string }[] = [
+  { x: -50, y: -50, title: "Top-left corner" },
+  { x: 0, y: -50, title: "Top edge" },
+  { x: 50, y: -50, title: "Top-right corner" },
+  { x: -50, y: 0, title: "Left edge" },
+  { x: 0, y: 0, title: "Inside (not hanging)" },
+  { x: 50, y: 0, title: "Right edge" },
+  { x: -50, y: 50, title: "Bottom-left corner" },
+  { x: 0, y: 50, title: "Bottom edge" },
+  { x: 50, y: 50, title: "Bottom-right corner" }
+];
+
+function HangFields({ block, mutateBlock }: { block: Block; mutateBlock: (recipe: (b: Block) => void, key?: string) => void }) {
+  const hang = block.hang ?? {};
+  const set = (next: { x?: number; y?: number }, key = "both") =>
+    mutateBlock((b) => {
+      const x = Math.max(-95, Math.min(95, Math.round(next.x ?? b.hang?.x ?? 0)));
+      const y = Math.max(-95, Math.min(95, Math.round(next.y ?? b.hang?.y ?? 0)));
+      if (!x && !y) delete b.hang;
+      else b.hang = { ...(x ? { x } : {}), ...(y ? { y } : {}) };
+    }, `${block.id}.hang.${key}`);
+  return (
+    <div className="field inspector-hang">
+      <span className="field-label">Hang off the edge</span>
+      <div className="hang-row">
+        <div className="hang-spots" role="group" aria-label="Hang off the edge">
+          {HANG_SPOTS.map((spot) => (
+            <button
+              key={spot.title}
+              title={spot.title}
+              aria-label={spot.title}
+              aria-pressed={(hang.x ?? 0) === spot.x && (hang.y ?? 0) === spot.y}
+              className={(hang.x ?? 0) === spot.x && (hang.y ?? 0) === spot.y ? "is-active" : undefined}
+              onClick={() => set(spot)}
+            >
+              <span />
+            </button>
+          ))}
+        </div>
+        <div className="hang-sliders">
+          <label>
+            <span>Sideways {hang.x ?? 0}%</span>
+            <input type="range" min={-95} max={95} value={hang.x ?? 0} onChange={(e) => set({ x: Number(e.target.value) }, "x")} />
+          </label>
+          <label>
+            <span>Up / down {hang.y ?? 0}%</span>
+            <input type="range" min={-95} max={95} value={hang.y ?? 0} onChange={(e) => set({ y: Number(e.target.value) }, "y")} />
+          </label>
+        </div>
+      </div>
+      <span className="field-hint">Slides the piece partly past its section's edge. The part outside is cut off and the page doesn't grow to fit it, so a big piece can peek in from a corner.</span>
+    </div>
+  );
+}
 
 function TurnFields({ block, mutateBlock }: { block: Block; mutateBlock: (recipe: (b: Block) => void, key?: string) => void }) {
   const turn = block.turn ?? {};

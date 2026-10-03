@@ -157,6 +157,12 @@
 .cmp-block {
   margin-top: calc(var(--oh-top, 0) * -1 * var(--row-h, 24px));
   margin-bottom: calc(var(--oh-bottom, 0) * -1 * var(--row-h, 24px));
+  left: calc(var(--hang-x, 0) * 1%);
+  top: calc(var(--hang-y, 0) * 1%);
+}
+
+.site-section--hang {
+  overflow: clip;
 }
 
 .b-heading {

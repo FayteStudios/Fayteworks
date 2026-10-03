@@ -35,6 +35,8 @@ export function blockStyle(section: Section, block: Block, z: number): CSSProper
   }
   if (block.overhang?.top) vars["--oh-top"] = block.overhang.top;
   if (block.overhang?.bottom) vars["--oh-bottom"] = block.overhang.bottom;
+  if (block.hang?.x) vars["--hang-x"] = block.hang.x;
+  if (block.hang?.y) vars["--hang-y"] = block.hang.y;
   return { ...vars, zIndex: z + 1 } as CSSProperties;
 }
 
@@ -134,6 +136,7 @@ export function SectionShell({ section, role, rows, children, gridRef, gridProps
         s.sticky && "site-section--sticky",
         parallax && "site-section--parallax",
         section.blocks.some((b) => b.overhang?.top || b.overhang?.bottom) && "site-section--overhang",
+        section.blocks.some((b) => b.hang?.x || b.hang?.y) && "site-section--hang",
         hasCustomLayout(section, "tablet") && "site-section--tablet-layout",
         hasCustomLayout(section, "phone") && "site-section--phone-layout",
         sheet && "site-section--sheet"

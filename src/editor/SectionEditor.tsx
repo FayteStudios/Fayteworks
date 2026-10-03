@@ -559,7 +559,7 @@ export function SectionEditor({ section, role, index, total }: Props) {
       ref={sectionElRef}
       data-section={sectionId}
       data-shared={role === "header" ? "Header · on every page" : role === "footer" ? "Footer · on every page" : undefined}
-      className={cls("editor-section", (role === "header" || role === "footer") && "is-shared", isActive && "is-active", isSectionSelected && "is-selected", drag && "is-dragging", state.focusedBlock?.sectionId === sectionId && "is-focus-section")}
+      className={cls("editor-section", (role === "header" || role === "footer") && "is-shared", isActive && "is-active", isSectionSelected && "is-selected", drag && "is-dragging", section.blocks.some((b) => selectedIds.includes(b.id) && (b.hang?.x || b.hang?.y)) && "is-showing-hang", state.focusedBlock?.sectionId === sectionId && "is-focus-section")}
       onPointerDown={startBand}
     >
       <SectionShell

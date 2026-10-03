@@ -756,6 +756,75 @@ kbd {
   cursor: grabbing;
 }
 
+.hang-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.hang-spots {
+  display: grid;
+  grid-template-columns: repeat(3, 22px);
+  gap: 3px;
+  flex: none;
+}
+
+.hang-spots button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 5px;
+  background: var(--ui-bg);
+}
+
+.hang-spots button span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-muted);
+}
+
+.hang-spots button.is-active {
+  border-color: var(--ui-accent);
+}
+
+.hang-spots button.is-active span {
+  background: var(--ui-accent);
+}
+
+.hang-sliders {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ui-muted);
+}
+
+.hang-sliders label {
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-section.is-showing-hang .site-section--hang {
+  z-index: 5;
+  overflow: visible;
+}
+
+.editor-section.is-showing-hang .site-section--hang::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  outline: 2px dashed var(--ui-accent);
+  outline-offset: -1px;
+  pointer-events: none;
+}
+
 .editor-block-content {
   flex: 1;
   display: flex;

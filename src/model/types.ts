@@ -27,6 +27,7 @@ export interface Block {
   locked?: boolean;
   valign?: "middle" | "bottom";
   overhang?: { top?: number; bottom?: number };
+  hang?: { x?: number; y?: number };
   spot?: string;
   turn?: BlockTurn;
   ext?: Record<string, unknown>;
