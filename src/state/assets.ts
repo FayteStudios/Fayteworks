@@ -42,7 +42,7 @@ const EXTENSIONS: Record<string, string> = {
 };
 
 export function extensionFor(type: string): string {
-  return EXTENSIONS[type] ?? "bin";
+  return EXTENSIONS[type.split(";")[0].trim().toLowerCase()] ?? "bin";
 }
 
 export function isAssetRef(src: string): boolean {
