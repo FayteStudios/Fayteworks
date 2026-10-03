@@ -5,6 +5,11 @@ type Loose<T> = Partial<T>;
 
 /** Physics roles used to live in the physics settings; they are now the hitbox's behaviour. */
 function liftPhysicsRole(block: Block): Block {
+  if (block.type === "wave" && "floor" in block.props) {
+    const { floor, ...props } = block.props;
+    const lifted = { ...block, props };
+    return floor === false || block.hitbox?.role ? lifted : { ...lifted, hitbox: { ...block.hitbox, role: "floor" } };
+  }
   const physics = block.ext?.physics as { role?: string } | undefined;
   if (!physics?.role) return block;
   const { role, ...rest } = physics;

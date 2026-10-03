@@ -26,7 +26,8 @@ export function createBlock(type: string, placement: Placement = {}, props: Bloc
     y: Math.max(0, placement.y ?? 0),
     w,
     h: placement.h ?? def.defaultSize.h,
-    props: { ...def.defaultProps, ...props }
+    props: { ...def.defaultProps, ...props },
+    ...(def.defaultHitbox ? { hitbox: structuredClone(def.defaultHitbox) } : {})
   };
 }
 

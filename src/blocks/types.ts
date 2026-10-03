@@ -16,6 +16,8 @@ export interface BlockDefinition {
   icon: string;
   description: string;
   defaultSize: { w: number; h: number };
+  /** The hitbox a new piece starts with (e.g. a wave line is a floor). */
+  defaultHitbox?: import("../model/hitbox").Hitbox;
   defaultProps: BlockProps;
   fields: FieldDef[];
   extraFields?: (props: BlockProps, site?: Site) => FieldDef[];
