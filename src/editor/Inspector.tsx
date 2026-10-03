@@ -653,44 +653,6 @@ function BlockInspector({ section, blockId }: { section: Section; blockId: strin
             )}
           </div>
         )}
-        {!stacked && (
-          <div className="field-row inspector-overhang">
-            {(["top", "bottom"] as const).map((edge) => (
-              <label key={edge} className="field">
-                <span className="field-label">{edge === "top" ? "Extend up (rows)" : "Extend down (rows)"}</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={60}
-                  value={block.overhang?.[edge] ?? 0}
-                  title={edge === "top" ? "Grow the block upwards without moving anything; past the section's edge it draws over the section above" : "Grow the block downwards without moving anything; past the section's edge it draws over the section below"}
-                  onChange={(e) =>
-                    mutateBlock((b) => {
-                      const n = Math.max(0, Math.min(60, Math.round(Number(e.target.value) || 0)));
-                      const next = { ...b.overhang, [edge]: n || undefined };
-                      if (!next.top && !next.bottom) delete b.overhang;
-                      else b.overhang = next;
-                    }, `${blockId}.overhang.${edge}`)
-                  }
-                />
-              </label>
-            ))}
-          </div>
-        )}
-        <label className="field field--toggle">
-          <span className="field-label">Touch its neighbours (no gap)</span>
-          <input
-            type="checkbox"
-            checked={Boolean(block.flush)}
-            onChange={(e) =>
-              mutateBlock((b) => {
-                if (e.target.checked) b.flush = true;
-                else delete b.flush;
-              }, `${blockId}.flush`)
-            }
-          />
-          <span className="field-hint">Pieces normally keep a small gap between columns. This lets the piece reach into the gap on both sides, so two pieces side by side meet exactly (turn it on for both).</span>
-        </label>
         <HangFields block={block} mutateBlock={mutateBlock} />
         <TurnFields block={block} mutateBlock={mutateBlock} />
         <label className="field">

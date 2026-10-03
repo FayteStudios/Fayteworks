@@ -13,6 +13,10 @@ export interface Hitbox {
   seat?: number;
   /** What it does: "" is decoration; other behaviours come from the parts that use them (e.g. physics). */
   role?: string;
+  /** Whether it keeps other pieces out of its way while arranging (unset: content does, decoration doesn't). */
+  arrange?: boolean;
+  /** Only the hitbox responds to clicks, grabs and touches (published pages and Preview). */
+  clickOnly?: boolean;
 }
 
 export interface HitboxBounds {
@@ -49,12 +53,24 @@ export function hitboxBounds(hb: Hitbox | undefined): HitboxBounds {
   return { left: clampPct(l), top: clampPct(t), right: clampPct(100 - r), bottom: clampPct(100 - b) };
 }
 
+/** CSS clip-path of the hitbox, for the area that takes clicks. */
+export function hitboxClip(hb: Hitbox | undefined): string {
+  if (hb?.shape === "outline") {
+    const pts = outlineOf(hb);
+    if (pts.length >= 3) return `polygon(${pts.map(([x, y]) => `${x}% ${y}%`).join(", ")})`;
+  }
+  const b = hitboxBounds(hb);
+  if (hb?.shape === "oval") return `ellipse(${(b.right - b.left) / 2}% ${(b.bottom - b.top) / 2}% at ${(b.left + b.right) / 2}% ${(b.top + b.bottom) / 2}%)`;
+  const pos = (n: number) => `${Math.max(0, n)}%`;
+  return `inset(${pos(b.top)} ${pos(100 - b.right)} ${pos(100 - b.bottom)} ${pos(b.left)})`;
+}
+
 export const seatOf = (hb: Hitbox | undefined) => (typeof hb?.seat === "number" ? hb.seat : hitboxBounds(hb).bottom);
 
 export function isPlainHitbox(hb: Hitbox | undefined): boolean {
   if (!hb) return true;
   const inset = hb.inset ?? [0, 0, 0, 0];
-  return (!hb.shape || hb.shape === "box") && inset.every((n) => !n) && typeof hb.seat !== "number" && !hb.role;
+  return (!hb.shape || hb.shape === "box") && inset.every((n) => !n) && typeof hb.seat !== "number" && !hb.role && hb.arrange === undefined && !hb.clickOnly;
 }
 
 const round = (n: number) => Math.round(n * 10) / 10;

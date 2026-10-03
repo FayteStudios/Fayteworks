@@ -3,6 +3,7 @@ import { stripRich } from "../site/richText";
 import { layerIdOf } from "../model/layers";
 import { isHiddenAt, isStacked, rectFor, setRect, type Rect, type Tier } from "../model/responsive";
 import { findSection, pageSectionsWithShared } from "../model/ops";
+import { arranges, settleBlocks, solidRect } from "../model/collisions";
 import { gridOf } from "../model/grid";
 import { ROW_HEIGHT, type Block, type Page, type Section, type Site } from "../model/types";
 
@@ -65,11 +66,11 @@ export function scanLayout(root: HTMLElement, site: Site, page: Page, tier: Tier
   for (const { section } of pageSectionsWithShared(site, page)) {
     if (isStacked(section, tier)) continue;
     const visible = new Set(Array.from(root.querySelectorAll<HTMLElement>(`[data-section-id="${section.id}"]`), (el) => el.dataset.blockId));
-    const blocks = section.blocks.filter((b) => isContentBlock(b) && visible.has(b.id) && !isHiddenAt(b, tier));
+    const blocks = section.blocks.filter((b) => arranges(b) && visible.has(b.id) && !isHiddenAt(b, tier));
     for (let i = 0; i < blocks.length; i++) {
       for (let j = i + 1; j < blocks.length; j++) {
-        const ri = rectFor(section, blocks[i], tier);
-        const rj = rectFor(section, blocks[j], tier);
+        const ri = solidRect(section, blocks[i], tier);
+        const rj = solidRect(section, blocks[j], tier);
         const [upper, lower] = ri.y <= rj.y ? [blocks[i], blocks[j]] : [blocks[j], blocks[i]];
         if (layerIdOf(section, upper) === layerIdOf(section, lower) && !opposite(upper, lower) && intersects(ri, rj)) {
           issues.push({
@@ -87,19 +88,7 @@ export function scanLayout(root: HTMLElement, site: Site, page: Page, tier: Tier
 }
 
 function makeRoom(section: Section, start: Block, tier: Tier): void {
-  const layerId = layerIdOf(section, start);
-  const queue = [start];
-  while (queue.length > 0) {
-    const mover = queue.shift()!;
-    const m = rectFor(section, mover, tier);
-    for (const b of section.blocks) {
-      if (b === mover || !isContentBlock(b) || layerIdOf(section, b) !== layerId || isHiddenAt(b, tier)) continue;
-      const r = rectFor(section, b, tier);
-      if (r.y < m.y || !intersects(m, r)) continue;
-      setRect(section, b, tier, { ...r, y: m.y + m.h });
-      queue.push(b);
-    }
-  }
+  settleBlocks(section, tier, [start.id], { settle: false });
 }
 
 export function applyFix(draft: Site, pageId: string, issue: LayoutIssue, fix: FixId, tier: Tier): void {

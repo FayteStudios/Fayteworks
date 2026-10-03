@@ -7377,3 +7377,9 @@ button.outline-toggle:hover {
   flex-direction: column;
   gap: 6px;
 }
+
+.hitbox-sub {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ui-border);
+}

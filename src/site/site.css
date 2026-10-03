@@ -162,6 +162,17 @@
   margin-inline: calc(var(--pull, 0) * var(--col-gap, 16px) / -2);
 }
 
+.site-block.has-hit-area {
+  pointer-events: none;
+}
+
+.site-block.has-hit-area > .hb-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: auto;
+}
+
 .site-section--hang {
   overflow: clip;
 }

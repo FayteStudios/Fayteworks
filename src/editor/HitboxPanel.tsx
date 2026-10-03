@@ -3,6 +3,7 @@ import { seatOf, traceAlpha, type HitboxShape } from "../model/hitbox";
 import type { Block, Section } from "../model/types";
 import { useEditor } from "../state/store";
 import { useHitboxEdit } from "./HitboxOverlay";
+import { arranges, isFlowBlock } from "../model/collisions";
 
 const SHAPES: { value: HitboxShape; label: string }[] = [
   { value: "box", label: "Box" },
@@ -74,6 +75,11 @@ export function HitboxPanel({ block, section, mutateBlock }: { block: Block; sec
           ))}
         </select>
         {role?.hint && <span className="field-hint">{role.hint}</span>}
+      </label>
+      <label className="field field--toggle">
+        <span className="field-label">Only the hitbox can be clicked</span>
+        <input type="checkbox" checked={Boolean(hb.clickOnly)} onChange={(e) => edit((h) => ({ ...h, clickOnly: e.target.checked || undefined }), "click")} />
+        <span className="field-hint">Clicks, grabs and touches outside the hitbox go to whatever is behind it (on the published page and in Preview).</span>
       </label>
       {hitboxOptions.map((Options, i) => (
         <Options key={i} block={block} mutate={mutateBlock} />
@@ -161,6 +167,52 @@ export function HitboxPanel({ block, section, mutateBlock }: { block: Block; sec
           <span className="field-hint">Where it touches the ground. Anything below hangs over: a treble clef can sit on its curl with its tail hanging below.</span>
         </label>
       )}
+      <span className="field-label hitbox-sub">While arranging</span>
+      <label className="field field--toggle">
+        <span className="field-label">Keeps other pieces out of its way</span>
+        <input
+          type="checkbox"
+          checked={arranges(block)}
+          onChange={(e) => edit((h) => ({ ...h, arrange: e.target.checked === isFlowBlock(block) ? undefined : e.target.checked }), "arrange")}
+        />
+        <span className="field-hint">When you move pieces, these push each other aside by their hitboxes. Text and buttons do by default; pictures and shapes don't.</span>
+      </label>
+      <label className="field field--toggle">
+        <span className="field-label">Touch its neighbours (no gap)</span>
+        <input
+          type="checkbox"
+          checked={Boolean(block.flush)}
+          onChange={(e) =>
+            mutateBlock((b) => {
+              if (e.target.checked) b.flush = true;
+              else delete b.flush;
+            }, `${block.id}.flush`)
+          }
+        />
+        <span className="field-hint">Reaches into the column gap on both sides, so two pieces side by side meet exactly (turn it on for both).</span>
+      </label>
+      <div className="field-row">
+        {(["top", "bottom"] as const).map((edge) => (
+          <label key={edge} className="field">
+            <span className="field-label">{edge === "top" ? "Picture reaches up (rows)" : "Picture reaches down (rows)"}</span>
+            <input
+              type="number"
+              min={0}
+              max={60}
+              value={block.overhang?.[edge] ?? 0}
+              onChange={(e) =>
+                mutateBlock((b) => {
+                  const n = Math.max(0, Math.min(60, Math.round(Number(e.target.value) || 0)));
+                  const next = { ...b.overhang, [edge]: n || undefined };
+                  if (!next.top && !next.bottom) delete b.overhang;
+                  else b.overhang = next;
+                }, `${block.id}.overhang.${edge}`)
+              }
+            />
+          </label>
+        ))}
+      </div>
+      <span className="field-hint">The picture can reach past its space without moving anything; past the section's edge it draws over the next one.</span>
       <div className="field-row">
         <button className={state.hitboxView ? "btn btn--small btn--primary" : "btn btn--small"} onClick={() => setHitboxView(!state.hitboxView)}>
           {state.hitboxView ? "Hide hitboxes" : "Show hitboxes on the page"}

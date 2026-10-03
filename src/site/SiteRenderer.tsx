@@ -4,7 +4,7 @@ import { animationMarkup, animationSources } from "../motion/compile";
 import { soundMarkup } from "../motion/sounds";
 import { bindProps } from "../data/model";
 import { cardLayouts, extensions, pieceAttrs } from "../model/extras";
-import { hitboxAttrs } from "../model/hitbox";
+import { hitboxAttrs, hitboxClip } from "../model/hitbox";
 import { isCardShell, shellOf } from "../model/shells";
 import { gridVars } from "../model/grid";
 import { getBlockDefinition } from "../blocks/registry";
@@ -196,7 +196,7 @@ export function StaticSection({ section, role }: { section: Section; role: Secti
         return (
           <div
             key={block.id}
-            className="site-block"
+            className={block.hitbox?.clickOnly ? "site-block has-hit-area" : "site-block"}
             style={{ ...blockStyle(section, block, z), ...motion.style } as CSSProperties}
             data-mobile-height={mobileHeightOf(block)}
             data-grow={getBlockDefinition(block.type)?.grows ? "" : undefined}
@@ -206,6 +206,7 @@ export function StaticSection({ section, role }: { section: Section; role: Secti
           >
             <BlockContent block={block} />
             <PieceAfter block={block} />
+            {block.hitbox?.clickOnly && <span className="hb-hit" style={{ clipPath: hitboxClip(block.hitbox) }} aria-hidden />}
           </div>
         );
       })}
